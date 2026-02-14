@@ -5,7 +5,7 @@ namespace CS2ServerPicker.Services;
 public sealed class PingService : IPingService
 {
     private readonly List<Ping> _activePings = [];
-    private readonly Lock _lock = new();
+    private readonly object _lock = new();
 
     public async Task<PingResult> PingServerAsync(IEnumerable<string> addresses, CancellationToken ct = default)
     {
