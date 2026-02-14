@@ -15,12 +15,14 @@
             <TextBlock Text="Settings"
                        FontSize="24"
                        FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Margin="0,0,0,24" />
 
             <!-- Appearance Section -->
             <TextBlock Text="Appearance"
                        FontSize="16"
                        FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Margin="0,0,0,12" />
 
             <ui:CardControl Margin="0,0,0,8">
@@ -32,9 +34,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Theme" FontWeight="Medium" />
+                            <TextBlock Text="Theme" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="Choose the application color theme"
-                                       FontSize="11" Opacity="0.6" />
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
                         <ComboBox Grid.Column="1"
@@ -49,6 +53,7 @@
             <TextBlock Text="Behavior"
                        FontSize="16"
                        FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Margin="0,20,0,12" />
 
             <ui:CardControl Margin="0,0,0,8">
@@ -60,9 +65,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Check for Updates" FontWeight="Medium" />
+                            <TextBlock Text="Check for Updates" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="Automatically check for new versions on startup"
-                                       FontSize="11" Opacity="0.6" />
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
                         <ToggleButton Grid.Column="1"
@@ -80,9 +87,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Auto-Refresh Interval" FontWeight="Medium" />
+                            <TextBlock Text="Auto-Refresh Interval" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="How often to re-ping servers (0 = disabled)"
-                                       FontSize="11" Opacity="0.6" />
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
                         <ComboBox Grid.Column="1"
@@ -114,6 +123,7 @@
             <TextBlock Text="Firewall"
                        FontSize="16"
                        FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Margin="0,20,0,12" />
 
             <ui:CardControl Margin="0,0,0,8">
@@ -125,9 +135,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Firewall Status" FontWeight="Medium" />
+                            <TextBlock Text="Firewall Status" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="{Binding FirewallStatus, TargetNullValue='Click Check to verify'}"
-                                       FontSize="11" Opacity="0.6" />
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
                         <ui:Button Grid.Column="1"
@@ -147,9 +159,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Reset Firewall" FontWeight="Medium" />
+                            <TextBlock Text="Reset Firewall" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="Reset Windows Firewall to default settings (use with caution)"
-                                       FontSize="11" Opacity="0.6" />
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
                         <ui:Button Grid.Column="1"
@@ -164,6 +178,7 @@
             <TextBlock Text="Updates"
                        FontSize="16"
                        FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Margin="0,20,0,12" />
 
             <ui:CardControl Margin="0,0,0,8">
@@ -175,9 +190,11 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="Manual Update Check" FontWeight="Medium" />
+                            <TextBlock Text="Manual Update Check" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="{Binding StatusText, TargetNullValue='Click to check for updates'}"
-                                       FontSize="11" Opacity="0.6" />
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </StackPanel>
 
                         <ui:Button Grid.Column="1"
@@ -192,6 +209,7 @@
             <TextBlock Text="About"
                        FontSize="16"
                        FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                        Margin="0,20,0,12" />
 
             <ui:CardControl Margin="0,0,0,8">
@@ -199,14 +217,21 @@
                     <StackPanel>
                         <TextBlock Text="CS2 Server Picker"
                                    FontWeight="SemiBold"
-                                   FontSize="14" />
-                        <TextBlock FontSize="12" Opacity="0.7" Margin="0,4,0,0">
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,4,0,0">
                             <Run Text="Version:" />
                             <Run Text="{Binding CurrentVersion, Mode=OneWay}" />
                         </TextBlock>
-                        <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0"
+                        <TextBlock FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,2,0,0"
                                    Text="Author: FN-FAL113" />
-                        <TextBlock FontSize="12" Opacity="0.7" Margin="0,2,0,0"
+                        <TextBlock FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,2,0,0"
                                    Text="License: GNU General Public License V3" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

@@ -39,23 +39,23 @@
                         PlaceholderText="Search servers..."
                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                         Icon="{ui:SymbolIcon Search24}"
+                        ToolTip="Filter servers by name or region"
                         Margin="0,0,12,0" />
 
             <!-- Action Buttons -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button Content="{Binding IsClustered, Converter={StaticResource InverseBool}, ConverterParameter=ClusterText}"
-                           Command="{Binding ToggleClusterCommand}"
+                <ui:Button Command="{Binding ToggleClusterCommand}"
                            Appearance="Secondary"
-                           Margin="0,0,6,0"
-                           ToolTip="Toggle clustered/unclustered server view">
+                           Icon="{ui:SymbolIcon Group24}"
+                           Margin="0,0,6,0">
                     <ui:Button.Style>
                         <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                            <Setter Property="Content" Value="Cluster" />
+                            <Setter Property="ToolTip" Value="Group related servers by region into clusters" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsClustered}" Value="True">
                                     <Setter Property="Content" Value="Uncluster" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsClustered}" Value="False">
-                                    <Setter Property="Content" Value="Cluster" />
+                                    <Setter Property="ToolTip" Value="Show individual servers instead of clustered groups" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -65,15 +65,15 @@
                 <ui:Button Icon="{ui:SymbolIcon ArrowSync24}"
                            Command="{Binding RefreshPingsCommand}"
                            Appearance="Secondary"
-                           ToolTip="Refresh pings"
+                           ToolTip="Ping all servers to measure latency"
                            Margin="0,0,6,0" />
 
                 <ToggleButton IsChecked="{Binding AutoRefreshEnabled}"
-                              ToolTip="Toggle auto-refresh pings"
+                              ToolTip="Automatically re-ping servers at a regular interval"
                               Padding="8,6">
                     <StackPanel Orientation="Horizontal">
                         <ui:SymbolIcon Symbol="Timer24" Margin="0,0,4,0" />
-                        <TextBlock Text="Auto" />
+                        <TextBlock Text="Auto" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                     </StackPanel>
                 </ToggleButton>
             </StackPanel>
@@ -92,20 +92,22 @@
                 <RadioButton Content="All"
                              IsChecked="{Binding FilterMode, Converter={converters:StringMatchConverter}, ConverterParameter=All}"
                              GroupName="FilterMode"
-                             Style="{StaticResource {x:Type RadioButton}}"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              Margin="0,0,4,0"
-                             Command="{Binding}"
-                             Tag="All" Click="FilterRadio_Click" />
+                             Tag="All" Click="FilterRadio_Click"
+                             ToolTip="Show all servers" />
                 <RadioButton Content="Favorites"
                              GroupName="FilterMode"
-                             Style="{StaticResource {x:Type RadioButton}}"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              Margin="0,0,4,0"
-                             Tag="Favorites" Click="FilterRadio_Click" />
+                             Tag="Favorites" Click="FilterRadio_Click"
+                             ToolTip="Show only favorited servers" />
                 <RadioButton Content="Blocked"
                              GroupName="FilterMode"
-                             Style="{StaticResource {x:Type RadioButton}}"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              Margin="0,0,4,0"
-                             Tag="Blocked" Click="FilterRadio_Click" />
+                             Tag="Blocked" Click="FilterRadio_Click"
+                             ToolTip="Show only blocked servers" />
             </StackPanel>
 
             <!-- Region filter -->
@@ -113,7 +115,7 @@
                       ItemsSource="{Binding RegionFilters}"
                       SelectedItem="{Binding SelectedRegionFilter}"
                       Width="160"
-                      ToolTip="Filter by region" />
+                      ToolTip="Filter servers by geographic region" />
         </Grid>
 
         <!-- Loading overlay -->
@@ -138,24 +140,32 @@
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                   BorderThickness="1"
                   BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="4,0" />
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:ServerItemViewModel}">
-                    <Grid Margin="4,3" Height="42">
+                    <Grid Margin="0,3" Height="42">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="36" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="120" />
-                            <ColumnDefinition Width="32" />
-                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="36" />
+                            <ColumnDefinition Width="36" />
                         </Grid.ColumnDefinitions>
 
                         <!-- Flag -->
                         <Image Grid.Column="0"
                                Width="24" Height="16"
                                VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality">
                             <Image.Source>
                                 <BitmapImage UriSource="{Binding FlagPath, TargetNullValue={x:Null}}"
@@ -178,15 +188,16 @@
                             <TextBlock Text="{Binding Name}"
                                        FontSize="13"
                                        FontWeight="Medium"
-                                       TextTrimming="CharacterEllipsis" />
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="{Binding Region}"
                                        FontSize="10"
-                                       Opacity="0.6"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
                         <!-- Ping Bar -->
-                        <Grid Grid.Column="2" VerticalAlignment="Center" Margin="4,0">
+                        <Grid Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
                             <Border Background="{ui:ThemeResource ControlFillColorDisabledBrush}"
                                     CornerRadius="3"
                                     Height="6" />
@@ -212,9 +223,11 @@
                                 BorderThickness="0"
                                 Padding="4"
                                 VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
                                 Cursor="Hand"
                                 Click="FavoriteButton_Click"
-                                Tag="{Binding}">
+                                Tag="{Binding}"
+                                ToolTip="Toggle favorite">
                             <ui:SymbolIcon Symbol="{Binding IsFavorite, Converter={StaticResource BoolToFavoriteIcon}}"
                                           FontSize="16"
                                           Foreground="{StaticResource FavoriteBrush}" />
@@ -224,14 +237,15 @@
                         <CheckBox Grid.Column="5"
                                   IsChecked="{Binding IsSelected}"
                                   VerticalAlignment="Center"
-                                  HorizontalAlignment="Center" />
+                                  HorizontalAlignment="Center"
+                                  ToolTip="Select server for bulk actions" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
 
         <!-- Bottom Action Bar -->
-        <Grid Grid.Row="3" Margin="0,12,0,0">
+        <Grid Grid.Row="3" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -246,12 +260,16 @@
                        Content="Select All"
                        Command="{Binding SelectAllCommand}"
                        Appearance="Secondary"
+                       Icon="{ui:SymbolIcon CheckboxChecked24}"
+                       ToolTip="Select all servers in the current filtered view"
                        Margin="0,0,6,0" />
 
             <ui:Button Grid.Column="1"
                        Content="Deselect All"
                        Command="{Binding DeselectAllCommand}"
                        Appearance="Secondary"
+                       Icon="{ui:SymbolIcon CheckboxUnchecked24}"
+                       ToolTip="Deselect all servers in the current filtered view"
                        Margin="0,0,6,0" />
 
             <ui:Button Grid.Column="3"
@@ -259,6 +277,7 @@
                        Command="{Binding BlockSelectedCommand}"
                        Appearance="Caution"
                        Icon="{ui:SymbolIcon ShieldDismiss24}"
+                       ToolTip="Add firewall rules to block selected servers"
                        Margin="0,0,6,0" />
 
             <ui:Button Grid.Column="4"
@@ -266,6 +285,7 @@
                        Command="{Binding UnblockSelectedCommand}"
                        Appearance="Success"
                        Icon="{ui:SymbolIcon ShieldCheckmark24}"
+                       ToolTip="Remove firewall rules to unblock selected servers"
                        Margin="0,0,6,0" />
 
             <ui:Button Grid.Column="5"
@@ -273,17 +293,19 @@
                        Command="{Binding BlockAllCommand}"
                        Appearance="Danger"
                        Icon="{ui:SymbolIcon ShieldDismiss24}"
+                       ToolTip="Add firewall rules to block all servers"
                        Margin="0,0,6,0" />
 
             <ui:Button Grid.Column="6"
                        Content="Unblock All"
                        Command="{Binding UnblockAllCommand}"
                        Appearance="Success"
-                       Icon="{ui:SymbolIcon ShieldCheckmark24}" />
+                       Icon="{ui:SymbolIcon ShieldCheckmark24}"
+                       ToolTip="Remove all firewall rules to unblock every server" />
         </Grid>
 
         <!-- Status Bar -->
-        <Grid Grid.Row="4" Margin="0,8,0,0">
+        <Grid Grid.Row="4" Margin="0,6,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -292,13 +314,13 @@
             <TextBlock Grid.Column="0"
                        Text="{Binding StatusText}"
                        FontSize="11"
-                       Opacity="0.7"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <TextBlock Text="{Binding FilteredServers.Count, StringFormat='{}{0} servers'}"
                            FontSize="11"
-                           Opacity="0.7"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0" />
 

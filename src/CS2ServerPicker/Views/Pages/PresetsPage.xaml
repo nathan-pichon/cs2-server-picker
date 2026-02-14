@@ -30,18 +30,21 @@
             <TextBlock Grid.Column="0"
                        Text="Server Presets"
                        FontSize="24"
-                       FontWeight="SemiBold" />
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <ui:Button Content="New Preset"
                            Command="{Binding ShowAddPresetCommand}"
                            Appearance="Primary"
                            Icon="{ui:SymbolIcon Add24}"
+                           ToolTip="Create a new server preset configuration"
                            Margin="0,0,6,0" />
                 <ui:Button Content="Export"
                            Command="{Binding ExportPresetsCommand}"
                            Appearance="Secondary"
-                           Icon="{ui:SymbolIcon ArrowUpload24}" />
+                           Icon="{ui:SymbolIcon ArrowUpload24}"
+                           ToolTip="Export all presets to a JSON file on your Desktop" />
             </StackPanel>
         </Grid>
 
@@ -69,6 +72,7 @@
                                Text="Saved Presets"
                                FontSize="14"
                                FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                Margin="4,0,0,8" />
 
                     <ListBox Grid.Row="1"
@@ -87,8 +91,10 @@
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="{Binding Name}"
                                                    FontSize="13"
-                                                   FontWeight="Medium" />
-                                        <TextBlock FontSize="11" Opacity="0.6">
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <TextBlock FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                                             <Run Text="{Binding ServerCount, Mode=OneWay}" />
                                             <Run Text="servers" />
                                             <Run Text="  |  " />
@@ -136,6 +142,7 @@
                                    Text="Preset Servers"
                                    FontSize="14"
                                    FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,0,0,8" />
 
                         <ListBox Grid.Row="1"
@@ -144,7 +151,8 @@
                                  Background="Transparent">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding}" Margin="4,3" FontSize="12" />
+                                    <TextBlock Text="{Binding}" Margin="4,3" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -155,21 +163,25 @@
                                        Command="{Binding ApplyBlockPresetCommand}"
                                        Appearance="Caution"
                                        Icon="{ui:SymbolIcon ShieldDismiss24}"
+                                       ToolTip="Block only the servers in this preset"
                                        Margin="0,0,6,0" />
                             <ui:Button Content="Block Except Preset"
                                        Command="{Binding ApplyBlockExceptPresetCommand}"
                                        Appearance="Primary"
                                        Icon="{ui:SymbolIcon ShieldCheckmark24}"
+                                       ToolTip="Block all servers except the ones in this preset"
                                        Margin="0,0,6,0" />
                             <ui:Button Content="Edit"
                                        Command="{Binding ShowEditPresetCommand}"
                                        Appearance="Secondary"
                                        Icon="{ui:SymbolIcon Edit24}"
+                                       ToolTip="Edit this preset's name and server selection"
                                        Margin="0,0,6,0" />
                             <ui:Button Content="Delete"
                                        Command="{Binding DeletePresetCommand}"
                                        Appearance="Danger"
-                                       Icon="{ui:SymbolIcon Delete24}" />
+                                       Icon="{ui:SymbolIcon Delete24}"
+                                       ToolTip="Permanently delete this preset" />
                         </StackPanel>
                     </Grid>
 
@@ -199,6 +211,7 @@
                         <TextBlock Grid.Row="0"
                                    FontSize="14"
                                    FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,0,0,8">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -215,6 +228,7 @@
                         <ui:TextBox Grid.Row="1"
                                     PlaceholderText="Preset name..."
                                     Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="Enter a name for the preset (letters, numbers, and spaces only)"
                                     Margin="0,0,0,12" />
 
                         <!-- Server selection list -->
@@ -226,6 +240,7 @@
                                 <DataTemplate DataType="{x:Type vm:ServerSelectionItem}">
                                     <CheckBox IsChecked="{Binding IsSelected}"
                                               Content="{Binding Name}"
+                                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                               Margin="2,2"
                                               FontSize="12" />
                                 </DataTemplate>
@@ -237,10 +252,12 @@
                                        Command="{Binding SavePresetCommand}"
                                        Appearance="Primary"
                                        Icon="{ui:SymbolIcon Save24}"
+                                       ToolTip="Save the preset with the selected servers"
                                        Margin="0,0,6,0" />
                             <ui:Button Content="Cancel"
                                        Command="{Binding CancelEditCommand}"
-                                       Appearance="Secondary" />
+                                       Appearance="Secondary"
+                                       ToolTip="Discard changes and return to preset view" />
                         </StackPanel>
                     </Grid>
                 </Grid>
@@ -251,7 +268,7 @@
         <TextBlock Grid.Row="2"
                    Text="{Binding StatusText}"
                    FontSize="11"
-                   Opacity="0.7"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                    Margin="0,8,0,0" />
     </Grid>
 </Page>
