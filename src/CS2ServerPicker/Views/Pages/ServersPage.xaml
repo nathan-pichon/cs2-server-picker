@@ -1,0 +1,311 @@
+<Page x:Class="CS2ServerPicker.Views.Pages.ServersPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:converters="clr-namespace:CS2ServerPicker.Converters"
+      xmlns:vm="clr-namespace:CS2ServerPicker.ViewModels"
+      d:DataContext="{d:DesignInstance vm:ServersPageViewModel}"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      Loaded="OnPageLoaded">
+
+    <Page.Resources>
+        <converters:PingStatusToBrushConverter x:Key="PingStatusToBrush" />
+        <converters:PingStatusToBarWidthConverter x:Key="PingStatusToBarWidth" />
+        <converters:BoolToFavoriteIconConverter x:Key="BoolToFavoriteIcon" />
+        <converters:InverseBoolConverter x:Key="InverseBool" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Page.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Top Toolbar -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Search Box -->
+            <ui:TextBox Grid.Column="0"
+                        PlaceholderText="Search servers..."
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                        Icon="{ui:SymbolIcon Search24}"
+                        Margin="0,0,12,0" />
+
+            <!-- Action Buttons -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:Button Content="{Binding IsClustered, Converter={StaticResource InverseBool}, ConverterParameter=ClusterText}"
+                           Command="{Binding ToggleClusterCommand}"
+                           Appearance="Secondary"
+                           Margin="0,0,6,0"
+                           ToolTip="Toggle clustered/unclustered server view">
+                    <ui:Button.Style>
+                        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsClustered}" Value="True">
+                                    <Setter Property="Content" Value="Uncluster" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsClustered}" Value="False">
+                                    <Setter Property="Content" Value="Cluster" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ui:Button.Style>
+                </ui:Button>
+
+                <ui:Button Icon="{ui:SymbolIcon ArrowSync24}"
+                           Command="{Binding RefreshPingsCommand}"
+                           Appearance="Secondary"
+                           ToolTip="Refresh pings"
+                           Margin="0,0,6,0" />
+
+                <ToggleButton IsChecked="{Binding AutoRefreshEnabled}"
+                              ToolTip="Toggle auto-refresh pings"
+                              Padding="8,6">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Timer24" Margin="0,0,4,0" />
+                        <TextBlock Text="Auto" />
+                    </StackPanel>
+                </ToggleButton>
+            </StackPanel>
+        </Grid>
+
+        <!-- Filter Bar -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- View mode filters -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <RadioButton Content="All"
+                             IsChecked="{Binding FilterMode, Converter={converters:StringMatchConverter}, ConverterParameter=All}"
+                             GroupName="FilterMode"
+                             Style="{StaticResource {x:Type RadioButton}}"
+                             Margin="0,0,4,0"
+                             Command="{Binding}"
+                             Tag="All" Click="FilterRadio_Click" />
+                <RadioButton Content="Favorites"
+                             GroupName="FilterMode"
+                             Style="{StaticResource {x:Type RadioButton}}"
+                             Margin="0,0,4,0"
+                             Tag="Favorites" Click="FilterRadio_Click" />
+                <RadioButton Content="Blocked"
+                             GroupName="FilterMode"
+                             Style="{StaticResource {x:Type RadioButton}}"
+                             Margin="0,0,4,0"
+                             Tag="Blocked" Click="FilterRadio_Click" />
+            </StackPanel>
+
+            <!-- Region filter -->
+            <ComboBox Grid.Column="2"
+                      ItemsSource="{Binding RegionFilters}"
+                      SelectedItem="{Binding SelectedRegionFilter}"
+                      Width="160"
+                      ToolTip="Filter by region" />
+        </Grid>
+
+        <!-- Loading overlay -->
+        <Grid Grid.Row="2" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="1"
+              Background="#80000000">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <ui:ProgressRing IsIndeterminate="True" Width="48" Height="48" />
+                <TextBlock Text="{Binding StatusText}"
+                           HorizontalAlignment="Center"
+                           Margin="0,12,0,0"
+                           FontSize="14"
+                           Foreground="White" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Server List -->
+        <ListView Grid.Row="2"
+                  x:Name="ServerListView"
+                  ItemsSource="{Binding FilteredServers}"
+                  SelectionMode="Extended"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  BorderThickness="1"
+                  BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}">
+            <ListView.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:ServerItemViewModel}">
+                    <Grid Margin="4,3" Height="42">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="32" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Flag -->
+                        <Image Grid.Column="0"
+                               Width="24" Height="16"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Source>
+                                <BitmapImage UriSource="{Binding FlagPath, TargetNullValue={x:Null}}"
+                                             CreateOptions="IgnoreImageCache"
+                                             DecodePixelWidth="48" />
+                            </Image.Source>
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Style.Triggers>
+                                        <Trigger Property="Source" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+
+                        <!-- Server Name -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="13"
+                                       FontWeight="Medium"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Region}"
+                                       FontSize="10"
+                                       Opacity="0.6"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+
+                        <!-- Ping Bar -->
+                        <Grid Grid.Column="2" VerticalAlignment="Center" Margin="4,0">
+                            <Border Background="{ui:ThemeResource ControlFillColorDisabledBrush}"
+                                    CornerRadius="3"
+                                    Height="6" />
+                            <Border Background="{Binding PingStatus, Converter={StaticResource PingStatusToBrush}}"
+                                    CornerRadius="3"
+                                    Height="6"
+                                    HorizontalAlignment="Left"
+                                    Width="{Binding LatencyMs, Converter={StaticResource PingStatusToBarWidth}}" />
+                        </Grid>
+
+                        <!-- Latency Text -->
+                        <TextBlock Grid.Column="3"
+                                   Text="{Binding LatencyDisplay}"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{Binding PingStatus, Converter={StaticResource PingStatusToBrush}}" />
+
+                        <!-- Favorite Toggle -->
+                        <Button Grid.Column="4"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="4"
+                                VerticalAlignment="Center"
+                                Cursor="Hand"
+                                Click="FavoriteButton_Click"
+                                Tag="{Binding}">
+                            <ui:SymbolIcon Symbol="{Binding IsFavorite, Converter={StaticResource BoolToFavoriteIcon}}"
+                                          FontSize="16"
+                                          Foreground="{StaticResource FavoriteBrush}" />
+                        </Button>
+
+                        <!-- Selection Checkbox -->
+                        <CheckBox Grid.Column="5"
+                                  IsChecked="{Binding IsSelected}"
+                                  VerticalAlignment="Center"
+                                  HorizontalAlignment="Center" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <!-- Bottom Action Bar -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ui:Button Grid.Column="0"
+                       Content="Select All"
+                       Command="{Binding SelectAllCommand}"
+                       Appearance="Secondary"
+                       Margin="0,0,6,0" />
+
+            <ui:Button Grid.Column="1"
+                       Content="Deselect All"
+                       Command="{Binding DeselectAllCommand}"
+                       Appearance="Secondary"
+                       Margin="0,0,6,0" />
+
+            <ui:Button Grid.Column="3"
+                       Content="Block Selected"
+                       Command="{Binding BlockSelectedCommand}"
+                       Appearance="Caution"
+                       Icon="{ui:SymbolIcon ShieldDismiss24}"
+                       Margin="0,0,6,0" />
+
+            <ui:Button Grid.Column="4"
+                       Content="Unblock Selected"
+                       Command="{Binding UnblockSelectedCommand}"
+                       Appearance="Success"
+                       Icon="{ui:SymbolIcon ShieldCheckmark24}"
+                       Margin="0,0,6,0" />
+
+            <ui:Button Grid.Column="5"
+                       Content="Block All"
+                       Command="{Binding BlockAllCommand}"
+                       Appearance="Danger"
+                       Icon="{ui:SymbolIcon ShieldDismiss24}"
+                       Margin="0,0,6,0" />
+
+            <ui:Button Grid.Column="6"
+                       Content="Unblock All"
+                       Command="{Binding UnblockAllCommand}"
+                       Appearance="Success"
+                       Icon="{ui:SymbolIcon ShieldCheckmark24}" />
+        </Grid>
+
+        <!-- Status Bar -->
+        <Grid Grid.Row="4" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding StatusText}"
+                       FontSize="11"
+                       Opacity="0.7"
+                       VerticalAlignment="Center" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBlock Text="{Binding FilteredServers.Count, StringFormat='{}{0} servers'}"
+                           FontSize="11"
+                           Opacity="0.7"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0" />
+
+                <ui:HyperlinkButton NavigateUri="https://github.com/FN-FAL113/cs2-server-picker"
+                                    Content="GitHub"
+                                    Padding="4,2" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
