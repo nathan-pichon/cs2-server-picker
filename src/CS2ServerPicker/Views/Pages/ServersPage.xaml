@@ -46,7 +46,7 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <ui:Button Command="{Binding ToggleClusterCommand}"
                            Appearance="Secondary"
-                           Icon="{ui:SymbolIcon Group24}"
+                           Icon="{ui:SymbolIcon Globe24}"
                            Margin="0,0,6,0">
                     <ui:Button.Style>
                         <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
@@ -260,7 +260,6 @@
                        Content="Select All"
                        Command="{Binding SelectAllCommand}"
                        Appearance="Secondary"
-                       Icon="{ui:SymbolIcon CheckboxChecked24}"
                        ToolTip="Select all servers in the current filtered view"
                        Margin="0,0,6,0" />
 
@@ -268,7 +267,6 @@
                        Content="Deselect All"
                        Command="{Binding DeselectAllCommand}"
                        Appearance="Secondary"
-                       Icon="{ui:SymbolIcon CheckboxUnchecked24}"
                        ToolTip="Deselect all servers in the current filtered view"
                        Margin="0,0,6,0" />
 
