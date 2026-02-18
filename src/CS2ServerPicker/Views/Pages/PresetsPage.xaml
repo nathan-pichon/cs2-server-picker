@@ -1,0 +1,278 @@
+<Page x:Class="CS2ServerPicker.Views.Pages.PresetsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:vm="clr-namespace:CS2ServerPicker.ViewModels"
+      d:DataContext="{d:DesignInstance vm:PresetsPageViewModel}"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      Loaded="OnPageLoaded">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Page.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="Server Presets"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <ui:Button Content="New Preset"
+                           Command="{Binding ShowAddPresetCommand}"
+                           Appearance="Primary"
+                           Icon="{ui:SymbolIcon Add24}"
+                           ToolTip="Create a new server preset configuration"
+                           Margin="0,0,6,0" />
+                <ui:Button Content="Export"
+                           Command="{Binding ExportPresetsCommand}"
+                           Appearance="Secondary"
+                           Icon="{ui:SymbolIcon ArrowUpload24}"
+                           ToolTip="Export all presets to a JSON file on your Desktop" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Preset List -->
+            <Border Grid.Column="0"
+                    BorderThickness="1"
+                    BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                    CornerRadius="8"
+                    Padding="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="Saved Presets"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Margin="4,0,0,8" />
+
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding Presets}"
+                             SelectedItem="{Binding SelectedPreset}"
+                             BorderThickness="0"
+                             Background="Transparent">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PresetItemViewModel}">
+                                <Grid Margin="4,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="13"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <TextBlock FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                            <Run Text="{Binding ServerCount, Mode=OneWay}" />
+                                            <Run Text="servers" />
+                                            <Run Text="  |  " />
+                                            <Run Text="{Binding IsClustered, Mode=OneWay, StringFormat='Clustered: {0}'}" />
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <ui:SymbolIcon Grid.Column="1"
+                                                   Symbol="BookmarkMultiple24"
+                                                   FontSize="16"
+                                                   Opacity="0.5"
+                                                   VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel: Preset Details / Editor -->
+            <Border Grid.Column="2"
+                    BorderThickness="1"
+                    BorderBrush="{ui:ThemeResource ControlElevationBorderBrush}"
+                    CornerRadius="8"
+                    Padding="12">
+                <Grid>
+                    <!-- View mode: Show preset servers -->
+                    <Grid>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAddingPreset}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsEditingPreset}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Preset Servers"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Margin="0,0,0,8" />
+
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding SelectedPresetServers}"
+                                 BorderThickness="0"
+                                 Background="Transparent">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Margin="4,3" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Preset Actions -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
+                            <ui:Button Content="Block Preset"
+                                       Command="{Binding ApplyBlockPresetCommand}"
+                                       Appearance="Caution"
+                                       Icon="{ui:SymbolIcon ShieldDismiss24}"
+                                       ToolTip="Block only the servers in this preset"
+                                       Margin="0,0,6,0" />
+                            <ui:Button Content="Block Except Preset"
+                                       Command="{Binding ApplyBlockExceptPresetCommand}"
+                                       Appearance="Primary"
+                                       Icon="{ui:SymbolIcon ShieldCheckmark24}"
+                                       ToolTip="Block all servers except the ones in this preset"
+                                       Margin="0,0,6,0" />
+                            <ui:Button Content="Edit"
+                                       Command="{Binding ShowEditPresetCommand}"
+                                       Appearance="Secondary"
+                                       Icon="{ui:SymbolIcon Edit24}"
+                                       ToolTip="Edit this preset's name and server selection"
+                                       Margin="0,0,6,0" />
+                            <ui:Button Content="Delete"
+                                       Command="{Binding DeletePresetCommand}"
+                                       Appearance="Danger"
+                                       Icon="{ui:SymbolIcon Delete24}"
+                                       ToolTip="Permanently delete this preset" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Edit mode: Add/Edit preset -->
+                    <Grid>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAddingPreset}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsEditingPreset}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Margin="0,0,0,8">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="New Preset" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEditingPreset}" Value="True">
+                                            <Setter Property="Text" Value="Edit Preset" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <ui:TextBox Grid.Row="1"
+                                    PlaceholderText="Preset name..."
+                                    Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="Enter a name for the preset (letters, numbers, and spaces only)"
+                                    Margin="0,0,0,12" />
+
+                        <!-- Server selection list -->
+                        <ListBox Grid.Row="2"
+                                 ItemsSource="{Binding ServerSelectionItems}"
+                                 BorderThickness="0"
+                                 Background="Transparent">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ServerSelectionItem}">
+                                    <CheckBox IsChecked="{Binding IsSelected}"
+                                              Content="{Binding Name}"
+                                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                              Margin="2,2"
+                                              FontSize="12" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,12,0,0">
+                            <ui:Button Content="Save"
+                                       Command="{Binding SavePresetCommand}"
+                                       Appearance="Primary"
+                                       Icon="{ui:SymbolIcon Save24}"
+                                       ToolTip="Save the preset with the selected servers"
+                                       Margin="0,0,6,0" />
+                            <ui:Button Content="Cancel"
+                                       Command="{Binding CancelEditCommand}"
+                                       Appearance="Secondary"
+                                       ToolTip="Discard changes and return to preset view" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding StatusText}"
+                   FontSize="11"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                   Margin="0,8,0,0" />
+    </Grid>
+</Page>
