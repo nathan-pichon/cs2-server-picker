@@ -10,7 +10,16 @@
 A lightweight server picker for CS2. Previously developed for CS:GO and now for CS2! All regions available are included for freedom of selection. Still showing passion for the game since I started playing way back 2013.
 
 ## ⬇️ Download
-### [Releases](https://github.com/FN-FAL113/csgo-server-picker/releases)
+### [Releases](https://github.com/nathan-pichon/cs2-server-picker/releases)
+
+On the latest release you will typically find:
+
+- `CS2ServerPicker-<version>-win-x64.zip`  
+  - Recommended: contains all required files.  
+  - Extract anywhere and run `CS2ServerPicker.exe` **as Administrator**.
+- `CS2ServerPicker-<version>-win-x64-single.exe`  
+  - Single‑file executable.  
+  - Just download and run it **as Administrator**.
 
 ## 📷 Screenshot
 ![CS2ServerPicker](https://github.com/user-attachments/assets/e5c7c2a7-c560-4826-bcd5-9540d66abec6)
@@ -58,15 +67,15 @@ A lightweight server picker for CS2. Previously developed for CS:GO and now for 
   - You may have blocked many servers, for optimal searching and relaying block only the necessary server relays.
 
 **6. Why windows only?<br>**
-  - The app is written using VB.NET, and Windows platform still dominates the gaming scene due to better compatibility. [Steam Charts](https://store.steampowered.com/hwsurvey/) has great statistics on this.
+  - The app is written in modern C# (.NET 8, WPF) and is tightly integrated with Windows Firewall. Windows still dominates the gaming scene due to better compatibility. [Steam Charts](https://store.steampowered.com/hwsurvey/) has great statistics on this.
 
 **7. Will this work for Deadlock?**
   - CS2 and Deadlock servers utilize same server relay addresses. Although I haven't tested it, there is a high chance it will work for deadlock and some reddit posts have recommended this app, give it a shot 😉.
 
 ## 📔 To Do
-- Rewrite the whole app in C# with Cross Platform Support (Windows, Linux, Mac)
-  - Currently being developed (WIP)
-  - Will be released when this repo reaches 512 stars as a milestone
+- Improve preset management and import/export experience
+- Explore cross‑platform support (Linux, Mac) in a future .NET UI stack
+- Continue refining the UI/UX based on community feedback
   - Thank you for your support :)
 
 ## 💡 Contributors

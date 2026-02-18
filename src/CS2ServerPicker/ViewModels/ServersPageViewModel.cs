@@ -359,7 +359,7 @@ public sealed partial class ServersPageViewModel : ObservableObject
 
         StatusText = "Pinging all servers...";
 
-        foreach (var server in Servers)
+        foreach (var server in Servers.ToList())
         {
             if (ct.IsCancellationRequested) break;
 

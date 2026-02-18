@@ -230,6 +230,7 @@
                       x:Name="ServerListView"
                       ItemsSource="{Binding FilteredServers}"
                       SelectionMode="Extended"
+                      KeyDown="ServerListView_OnKeyDown"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
