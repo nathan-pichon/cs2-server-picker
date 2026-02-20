@@ -1,3 +1,4 @@
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2ServerPicker.Converters;
@@ -54,7 +55,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string _firewallStatus = string.Empty;
 
     [ObservableProperty]
-    private string _currentVersion = "3.0.0";
+    private string _currentVersion =
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "4.2.0";
 
     public string[] ThemeOptions { get; } = ["Dark", "Light"];
 

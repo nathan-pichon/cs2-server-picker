@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\fav_icon.ico</ApplicationIcon>
-    <Version>4.1.0</Version>
+    <Version>4.2.0</Version>
     <AssemblyTitle>CS2 Server Picker</AssemblyTitle>
     <Description>Counter-Strike 2 Server Region Picker</Description>
     <Company>FN-FAL113</Company>
