@@ -26,6 +26,11 @@ public partial class App : Application
         try
         {
             _host = Host.CreateDefaultBuilder()
+                // AppContext.BaseDirectory is always the exe directory, regardless of the
+                // current working directory. This matters because the app requires admin
+                // elevation (app.manifest), and UAC can change the CWD to a system path,
+                // causing appsettings.json to not be found by the default content root.
+                .UseContentRoot(AppContext.BaseDirectory)
                 .ConfigureServices((context, services) =>
                 {
                     // External service configuration (URLs, timeouts) — from appsettings.json
