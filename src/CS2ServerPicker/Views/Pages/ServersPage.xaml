@@ -232,7 +232,7 @@
                       SelectionMode="Extended"
                       KeyDown="ServerListView_OnKeyDown"
                       VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.VirtualizationMode="Standard"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                       Background="{ui:ThemeResource ControlFillColorDefaultBrush}"

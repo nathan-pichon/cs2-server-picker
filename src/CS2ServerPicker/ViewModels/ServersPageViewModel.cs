@@ -162,7 +162,8 @@ public sealed partial class ServersPageViewModel : ObservableObject
         StatusText = "Unblocking all servers before changing view...";
         await UnblockAllServersAsync();
 
-        _pingCache.Clear();
+        // Do NOT clear the cache — cached latency measurements are still valid and
+        // are carried over to the new view via ApplyCachedPingsToCurrentView below.
 
         IsClustered = !IsClustered;
         _settings.IsClustered = IsClustered;
@@ -171,7 +172,8 @@ public sealed partial class ServersPageViewModel : ObservableObject
         PopulateServerList();
         StatusText = IsClustered ? "Clustered view enabled" : "Unclustered view enabled";
 
-        await PingAllServersAsync();
+        // Apply existing cached pings to the newly-built VMs instead of re-pinging.
+        ApplyCachedPingsToCurrentView();
     }
 
     [RelayCommand]
@@ -581,6 +583,43 @@ public sealed partial class ServersPageViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Restores cached ping results to all VMs in the current view without issuing
+    /// any new network pings. Called after toggling cluster mode so the user keeps
+    /// seeing latency data without waiting for a full re-ping.
+    /// </summary>
+    private void ApplyCachedPingsToCurrentView()
+    {
+        if (IsClustered)
+        {
+            foreach (var clusterVm in Servers.ToList())
+                ApplyCachedAveragePingToCluster(clusterVm);
+        }
+        else
+        {
+            foreach (var server in Servers.ToList())
+                ApplyCachedPingToIndividualServer(server);
+        }
+    }
+
+    /// <summary>
+    /// Reads a single server's last-known ping result from <see cref="_pingCache"/>
+    /// and applies it to the VM. Blocked entries are skipped — a server that has
+    /// just been unblocked should show Unknown until explicitly re-pinged.
+    /// </summary>
+    private void ApplyCachedPingToIndividualServer(ServerItemViewModel server)
+    {
+        if (!_pingCache.TryGetValue(server.Name, out var cached))
+            return; // No cached result yet — leave as Unknown
+
+        if (cached.Status == PingStatus.Blocked)
+            return; // Server was just unblocked; leave as Unknown until re-pinged
+
+        server.LatencyMs = cached.LatencyMs;
+        server.LatencyDisplay = cached.Display;
+        server.PingStatus = cached.Status;
+    }
+
     private async Task PingServersAsync(IEnumerable<ServerItemViewModel> servers)
     {
         foreach (var server in servers)
@@ -611,11 +650,18 @@ public sealed partial class ServersPageViewModel : ObservableObject
         _pingCache[server.Name] = (-1L, PingStatus.Blocked, "Blocked");
     }
 
-    private static void MarkServerAsUnblocked(ServerItemViewModel server)
+    private void MarkServerAsUnblocked(ServerItemViewModel server)
     {
         server.IsBlocked = false;
         server.PingStatus = PingStatus.Unknown;
         server.LatencyDisplay = string.Empty;
+
+        // Remove any stale "Blocked" cache entry so that ApplyCachedPingsToCurrentView
+        // does not re-apply the blocked state to a server that has just been unblocked.
+        // Successful latency entries from before the server was blocked are not preserved
+        // here because the server needs a fresh ping after being unblocked.
+        if (_pingCache.TryGetValue(server.Name, out var cached) && cached.Status == PingStatus.Blocked)
+            _pingCache.Remove(server.Name);
     }
 
     private static void MarkServerAsPinging(ServerItemViewModel server)
