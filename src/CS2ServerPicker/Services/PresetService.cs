@@ -1,16 +1,17 @@
 using System.IO;
 using System.Text.Json;
 using CS2ServerPicker.Models;
+using Microsoft.Extensions.Logging;
 
 namespace CS2ServerPicker.Services;
 
 public sealed class PresetService : IPresetService
 {
-    private static readonly string PresetsDir = Path.Combine(
+    private static readonly string PresetsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CS2ServerPicker");
 
-    private static readonly string PresetsPath = Path.Combine(PresetsDir, "presets.json");
+    private static readonly string PresetsFilePath = Path.Combine(PresetsDirectory, "presets.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -18,30 +19,39 @@ public sealed class PresetService : IPresetService
         PropertyNameCaseInsensitive = true
     };
 
+    private readonly ILogger<PresetService> _logger;
+
+    public PresetService(ILogger<PresetService> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task<PresetCollection> LoadPresetsAsync()
     {
         try
         {
-            if (!File.Exists(PresetsPath))
+            if (!File.Exists(PresetsFilePath))
             {
-                await EnsurePresetsFileAsync();
+                await EnsurePresetsFileExistsAsync();
                 return [];
             }
 
-            var json = await File.ReadAllTextAsync(PresetsPath);
+            var json = await File.ReadAllTextAsync(PresetsFilePath);
             return JsonSerializer.Deserialize<PresetCollection>(json, JsonOptions) ?? [];
         }
-        catch
+        catch (Exception exception)
         {
+            _logger.LogWarning(exception,
+                "Failed to load presets from {Path}. Returning empty collection.", PresetsFilePath);
             return [];
         }
     }
 
     public async Task SavePresetsAsync(PresetCollection presets)
     {
-        await EnsureDirectoryAsync();
+        await EnsureDirectoryExistsAsync();
         var json = JsonSerializer.Serialize(presets, JsonOptions);
-        await File.WriteAllTextAsync(PresetsPath, json);
+        await File.WriteAllTextAsync(PresetsFilePath, json);
     }
 
     public async Task AddPresetAsync(string name, bool clustered, List<string> servers)
@@ -66,7 +76,6 @@ public sealed class PresetService : IPresetService
     {
         var presets = await LoadPresetsAsync();
 
-        // Remove old key if name changed
         if (presets.ContainsKey(originalKey))
             presets.Remove(originalKey);
 
@@ -92,16 +101,14 @@ public sealed class PresetService : IPresetService
     public async Task<PresetCollection> ImportPresetsAsync(string filePath)
     {
         var json = await File.ReadAllTextAsync(filePath);
-        var imported = JsonSerializer.Deserialize<PresetCollection>(json, JsonOptions) ?? [];
+        var importedPresets = JsonSerializer.Deserialize<PresetCollection>(json, JsonOptions) ?? [];
 
-        var existing = await LoadPresetsAsync();
-        foreach (var (key, preset) in imported)
-        {
-            existing[key] = preset;
-        }
+        var existingPresets = await LoadPresetsAsync();
+        foreach (var (key, preset) in importedPresets)
+            existingPresets[key] = preset;
 
-        await SavePresetsAsync(existing);
-        return existing;
+        await SavePresetsAsync(existingPresets);
+        return existingPresets;
     }
 
     public async Task ExportPresetsAsync(PresetCollection presets, string filePath)
@@ -110,17 +117,16 @@ public sealed class PresetService : IPresetService
         await File.WriteAllTextAsync(filePath, json);
     }
 
-    private async Task EnsurePresetsFileAsync()
+    private async Task EnsurePresetsFileExistsAsync()
     {
-        await EnsureDirectoryAsync();
-        if (!File.Exists(PresetsPath))
-            await File.WriteAllTextAsync(PresetsPath, "{}");
+        await EnsureDirectoryExistsAsync();
+        if (!File.Exists(PresetsFilePath))
+            await File.WriteAllTextAsync(PresetsFilePath, "{}");
     }
 
-    private Task EnsureDirectoryAsync()
+    private Task EnsureDirectoryExistsAsync()
     {
-        if (!Directory.Exists(PresetsDir))
-            Directory.CreateDirectory(PresetsDir);
+        Directory.CreateDirectory(PresetsDirectory);
         return Task.CompletedTask;
     }
 }

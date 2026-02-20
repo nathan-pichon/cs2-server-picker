@@ -1,34 +1,34 @@
 using System.Net.Http;
 using System.Text.Json;
+using CS2ServerPicker.Configuration;
 using CS2ServerPicker.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CS2ServerPicker.Services;
 
 public sealed class ServerDataService : IServerDataService
 {
-    private const string SteamApiUrl = "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730";
-
-    private static readonly ClusterDefinition[] ClusterDefinitions =
-    [
-        new() { ClusterName = "China", MatchPatterns = ["Perfect", "Hong Kong", "Alibaba", "Tencent"], Region = ServerRegions.Asia },
-        new() { ClusterName = "Japan", MatchPatterns = ["Tokyo"], Region = ServerRegions.Asia },
-        new() { ClusterName = "Stockholm (Sweden)", MatchPatterns = ["Stockholm"], Region = ServerRegions.Europe },
-        new() { ClusterName = "India", MatchPatterns = ["Chennai", "Mumbai"], Region = ServerRegions.Asia },
-    ];
-
     private readonly HttpClient _httpClient;
+    private readonly SteamApiOptions _steamApiOptions;
+    private readonly ILogger<ServerDataService> _logger;
     private List<ServerInfo> _servers = [];
 
-    public ServerDataService(HttpClient httpClient)
+    public ServerDataService(
+        HttpClient httpClient,
+        IOptions<SteamApiOptions> steamApiOptions,
+        ILogger<ServerDataService> logger)
     {
         _httpClient = httpClient;
+        _steamApiOptions = steamApiOptions.Value;
+        _logger = logger;
     }
 
-    public async Task<(string revision, List<ServerInfo> servers)?> FetchServerDataAsync(CancellationToken ct = default)
+    public async Task<(string revision, List<ServerInfo> servers)?> FetchServerDataAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            var json = await _httpClient.GetStringAsync(SteamApiUrl, ct);
+            var json = await _httpClient.GetStringAsync(_steamApiOptions.EndpointUrl, cancellationToken);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
@@ -36,48 +36,17 @@ public sealed class ServerDataService : IServerDataService
                 return null;
 
             var revision = revisionElement.ToString();
-            var servers = new List<ServerInfo>();
 
             if (!root.TryGetProperty("pops", out var pops))
                 return null;
 
-            foreach (var pop in pops.EnumerateObject())
-            {
-                if (!pop.Value.TryGetProperty("relays", out var relays))
-                    continue;
-
-                var addresses = new List<string>();
-                foreach (var relay in relays.EnumerateArray())
-                {
-                    if (relay.TryGetProperty("ipv4", out var ipv4))
-                        addresses.Add(ipv4.GetString()!);
-                }
-
-                if (addresses.Count == 0)
-                    continue;
-
-                var desc = pop.Value.TryGetProperty("desc", out var descElement)
-                    ? descElement.GetString() ?? pop.Name
-                    : pop.Name;
-
-                var serverName = $"{desc} ({pop.Name})";
-                var region = ServerRegions.GetRegion(pop.Name);
-
-                servers.Add(new ServerInfo
-                {
-                    Name = serverName,
-                    Code = pop.Name,
-                    Description = desc,
-                    RelayAddresses = addresses,
-                    Region = region
-                });
-            }
-
+            var servers = ParseServersFromPops(pops);
             _servers = servers;
             return (revision, servers);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger.LogError(exception, "Failed to fetch server data from Steam API at {Url}.", _steamApiOptions.EndpointUrl);
             return null;
         }
     }
@@ -87,38 +56,102 @@ public sealed class ServerDataService : IServerDataService
     public Dictionary<string, ClusteredServer> BuildClusteredView(List<ServerInfo> servers)
     {
         var clustered = new Dictionary<string, ClusteredServer>();
-        var assignedToCluster = new HashSet<string>();
+        var serversAlreadyAssignedToCluster = new HashSet<string>();
 
-        // Build clusters
-        foreach (var cluster in ClusterDefinitions)
+        AssignServersToClusters(servers, clustered, serversAlreadyAssignedToCluster);
+        AddRemainingServersAsIndividualEntries(servers, clustered, serversAlreadyAssignedToCluster);
+
+        return clustered;
+    }
+
+    private static List<ServerInfo> ParseServersFromPops(JsonElement pops)
+    {
+        var servers = new List<ServerInfo>();
+
+        foreach (var pop in pops.EnumerateObject())
         {
-            var matchingServers = servers.Where(s =>
-                cluster.MatchPatterns.Any(p => s.Name.Contains(p, StringComparison.OrdinalIgnoreCase)));
+            if (!pop.Value.TryGetProperty("relays", out var relays))
+                continue;
 
-            var allAddresses = new List<string>();
-            foreach (var server in matchingServers)
+            var relayAddresses = ExtractRelayAddresses(relays);
+            if (relayAddresses.Count == 0)
+                continue;
+
+            var description = pop.Value.TryGetProperty("desc", out var descElement)
+                ? descElement.GetString() ?? pop.Name
+                : pop.Name;
+
+            servers.Add(new ServerInfo
             {
-                allAddresses.AddRange(server.RelayAddresses);
-                assignedToCluster.Add(server.Name);
+                Name = $"{description} ({pop.Name})",
+                Code = pop.Name,
+                Description = description,
+                RelayAddresses = relayAddresses,
+                Region = ServerRegions.GetRegion(pop.Name)
+            });
+        }
+
+        return servers;
+    }
+
+    private static List<string> ExtractRelayAddresses(JsonElement relays)
+    {
+        var addresses = new List<string>();
+
+        foreach (var relay in relays.EnumerateArray())
+        {
+            if (relay.TryGetProperty("ipv4", out var ipv4))
+                addresses.Add(ipv4.GetString()!);
+        }
+
+        return addresses;
+    }
+
+    private static void AssignServersToClusters(
+        List<ServerInfo> servers,
+        Dictionary<string, ClusteredServer> clustered,
+        HashSet<string> serversAlreadyAssignedToCluster)
+    {
+        foreach (var clusterDefinition in ClusterConfiguration.Definitions)
+        {
+            var matchingServers = servers.Where(server =>
+                clusterDefinition.MatchPatterns.Any(pattern =>
+                    server.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            var allClusterAddresses = new List<string>();
+            var memberServerNames = new List<string>();
+
+            foreach (var matchingServer in matchingServers)
+            {
+                allClusterAddresses.AddRange(matchingServer.RelayAddresses);
+                memberServerNames.Add(matchingServer.Name);
+                serversAlreadyAssignedToCluster.Add(matchingServer.Name);
             }
 
-            if (allAddresses.Count > 0)
+            if (allClusterAddresses.Count > 0)
             {
-                clustered[cluster.ClusterName] = new ClusteredServer
+                clustered[clusterDefinition.ClusterName] = new ClusteredServer
                 {
-                    Name = cluster.ClusterName,
-                    AllAddresses = allAddresses,
-                    Region = cluster.Region
+                    Name = clusterDefinition.ClusterName,
+                    AllAddresses = allClusterAddresses,
+                    Region = clusterDefinition.Region,
+                    MemberServerNames = memberServerNames
                 };
             }
         }
+    }
 
-        // Add non-clustered servers
-        foreach (var server in servers.Where(s => !assignedToCluster.Contains(s.Name)))
+    private static void AddRemainingServersAsIndividualEntries(
+        List<ServerInfo> servers,
+        Dictionary<string, ClusteredServer> clustered,
+        HashSet<string> serversAlreadyAssignedToCluster)
+    {
+        foreach (var server in servers.Where(server => !serversAlreadyAssignedToCluster.Contains(server.Name)))
         {
-            if (clustered.TryGetValue(server.Name, out var existing))
+            if (clustered.TryGetValue(server.Name, out var existingCluster))
             {
-                existing.AllAddresses.AddRange(server.RelayAddresses);
+                existingCluster.AllAddresses.AddRange(server.RelayAddresses);
             }
             else
             {
@@ -130,7 +163,5 @@ public sealed class ServerDataService : IServerDataService
                 };
             }
         }
-
-        return clustered;
     }
 }

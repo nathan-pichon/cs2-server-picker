@@ -2,8 +2,13 @@ using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2ServerPicker.Configuration;
+using CS2ServerPicker.Constants;
 using CS2ServerPicker.Models;
 using CS2ServerPicker.Services;
+using CS2ServerPicker.Services.Filtering;
+using CS2ServerPicker.Services.Settings;
+using CS2ServerPicker.Services.Sorting;
 
 namespace CS2ServerPicker.ViewModels;
 
@@ -12,34 +17,55 @@ public sealed partial class ServersPageViewModel : ObservableObject
     private readonly IServerDataService _serverDataService;
     private readonly IFirewallService _firewallService;
     private readonly IPingService _pingService;
+    private readonly IServerFilterService _filterService;
+    private readonly IServerSortService _sortService;
+    private readonly ISettingsRepository _settingsRepository;
     private readonly AppSettings _settings;
 
     private List<ServerInfo> _allServers = [];
     private Dictionary<string, ClusteredServer> _clusteredServers = [];
-    private CancellationTokenSource? _pingCts;
+    private CancellationTokenSource? _pingCancellationSource;
     private DispatcherTimer? _autoRefreshTimer;
+    private bool _isPingInProgress;
+
+    /// <summary>
+    /// Ping cache keyed by individual server Name.
+    /// Populated during any ping pass and used to compute cluster averages
+    /// without re-pinging when the user changes filter, sort, or search text.
+    /// </summary>
+    private readonly Dictionary<string, (long LatencyMs, PingStatus Status, string Display)> _pingCache = [];
 
     public ServersPageViewModel(
         IServerDataService serverDataService,
         IFirewallService firewallService,
         IPingService pingService,
+        IServerFilterService filterService,
+        IServerSortService sortService,
+        ISettingsRepository settingsRepository,
         AppSettings settings)
     {
         _serverDataService = serverDataService;
         _firewallService = firewallService;
         _pingService = pingService;
+        _filterService = filterService;
+        _sortService = sortService;
+        _settingsRepository = settingsRepository;
         _settings = settings;
         _isClustered = settings.IsClustered;
     }
 
+    // ─── Collections ────────────────────────────────────────────────────────────
+
     public ObservableCollection<ServerItemViewModel> Servers { get; } = [];
     public ObservableCollection<ServerItemViewModel> FilteredServers { get; } = [];
+
+    // ─── Observable properties ──────────────────────────────────────────────────
 
     [ObservableProperty]
     private bool _isLoading;
 
     [ObservableProperty]
-    private string _sortColumn = "Name"; // Name, Region, Latency, Blocked, Favorite, Selected
+    private SortColumn _sortColumn = SortColumn.Name;
 
     [ObservableProperty]
     private bool _sortAscending = true;
@@ -68,15 +94,15 @@ public sealed partial class ServersPageViewModel : ObservableObject
     [ObservableProperty]
     private string _filterMode = "All"; // All, Favorites, Blocked
 
-    public string[] RegionFilters { get; } =
-        ["All", "Europe", "North America", "South America", "Asia", "Middle East", "Africa", "Oceania"];
+    public string[] RegionFilters { get; } = AppConstants.Regions.FilterOptions;
 
-    partial void OnSearchTextChanged(string value) => ApplyFilters();
-    partial void OnSelectedRegionFilterChanged(string value) => ApplyFilters();
-    partial void OnFilterModeChanged(string value) => ApplyFilters();
+    // ─── Property change reactions ──────────────────────────────────────────────
 
-    partial void OnSortColumnChanged(string value) => ApplyFilters();
-    partial void OnSortAscendingChanged(bool value) => ApplyFilters();
+    partial void OnSearchTextChanged(string value) => RefreshFilteredServerList();
+    partial void OnSelectedRegionFilterChanged(string value) => RefreshFilteredServerList();
+    partial void OnFilterModeChanged(string value) => RefreshFilteredServerList();
+    partial void OnSortColumnChanged(SortColumn value) => RefreshFilteredServerList();
+    partial void OnSortAscendingChanged(bool value) => RefreshFilteredServerList();
 
     partial void OnAutoRefreshEnabledChanged(bool value)
     {
@@ -86,34 +112,31 @@ public sealed partial class ServersPageViewModel : ObservableObject
             StopAutoRefresh();
     }
 
+    // ─── Commands ───────────────────────────────────────────────────────────────
+
     [RelayCommand]
     private async Task LoadServersAsync()
     {
         IsLoading = true;
         StatusText = "Fetching server data from Steam...";
 
-        var result = await _serverDataService.FetchServerDataAsync();
+        var fetchedServerData = await _serverDataService.FetchServerDataAsync();
 
-        if (result is null)
+        if (fetchedServerData is null)
         {
             StatusText = "Failed to load server data. Check your internet connection.";
             IsLoading = false;
             return;
         }
 
-        var (revision, servers) = result.Value;
+        var (revision, servers) = fetchedServerData.Value;
         _allServers = servers;
         _clusteredServers = _serverDataService.BuildClusteredView(servers);
 
-        // Check if server data was updated
-        if (!string.IsNullOrEmpty(_settings.ServerRevision) && _settings.ServerRevision != revision)
-        {
-            StatusText = "Server data updated by Valve. Unblocking all servers...";
-            await UnblockAllServersInternalAsync();
-        }
+        await UnblockAllServersIfRevisionChangedAsync(revision);
 
         _settings.ServerRevision = revision;
-        _settings.Save();
+        _settingsRepository.Save(_settings);
 
         PopulateServerList();
         IsLoading = false;
@@ -126,6 +149,8 @@ public sealed partial class ServersPageViewModel : ObservableObject
     private async Task RefreshPingsAsync()
     {
         if (IsOperationInProgress) return;
+
+        _pingCache.Clear();
         await PingAllServersAsync();
     }
 
@@ -135,14 +160,20 @@ public sealed partial class ServersPageViewModel : ObservableObject
         if (IsOperationInProgress) return;
 
         StatusText = "Unblocking all servers before changing view...";
-        await UnblockAllServersInternalAsync();
+        await UnblockAllServersAsync();
+
+        // Do NOT clear the cache — cached latency measurements are still valid and
+        // are carried over to the new view via ApplyCachedPingsToCurrentView below.
 
         IsClustered = !IsClustered;
         _settings.IsClustered = IsClustered;
-        _settings.Save();
+        _settingsRepository.Save(_settings);
 
         PopulateServerList();
         StatusText = IsClustered ? "Clustered view enabled" : "Unclustered view enabled";
+
+        // Apply existing cached pings to the newly-built VMs instead of re-pinging.
+        ApplyCachedPingsToCurrentView();
     }
 
     [RelayCommand]
@@ -150,26 +181,21 @@ public sealed partial class ServersPageViewModel : ObservableObject
     {
         if (IsOperationInProgress) return;
 
-        var selected = FilteredServers.Where(s => s.IsSelected).ToList();
-        if (selected.Count == 0)
+        var selectedServers = FilteredServers.Where(server => server.IsSelected).ToList();
+        if (selectedServers.Count == 0)
         {
             StatusText = "No servers selected.";
             return;
         }
 
         IsOperationInProgress = true;
-        StatusText = $"Blocking {selected.Count} server(s)...";
+        StatusText = $"Blocking {selectedServers.Count} server(s)...";
 
-        foreach (var server in selected)
-        {
-            await _firewallService.BlockServerAsync(server.FirewallRuleName, server.CombinedAddresses);
-            server.IsBlocked = true;
-            server.PingStatus = PingStatus.Blocked;
-            server.LatencyDisplay = "Blocked";
-        }
+        foreach (var server in selectedServers)
+            await BlockServerAsync(server);
 
         IsOperationInProgress = false;
-        StatusText = $"Blocked {selected.Count} server(s)";
+        StatusText = $"Blocked {selectedServers.Count} server(s)";
     }
 
     [RelayCommand]
@@ -177,28 +203,23 @@ public sealed partial class ServersPageViewModel : ObservableObject
     {
         if (IsOperationInProgress) return;
 
-        var selected = FilteredServers.Where(s => s.IsSelected).ToList();
-        if (selected.Count == 0)
+        var selectedServers = FilteredServers.Where(server => server.IsSelected).ToList();
+        if (selectedServers.Count == 0)
         {
             StatusText = "No servers selected.";
             return;
         }
 
         IsOperationInProgress = true;
-        StatusText = $"Unblocking {selected.Count} server(s)...";
+        StatusText = $"Unblocking {selectedServers.Count} server(s)...";
 
-        foreach (var server in selected)
-        {
-            await _firewallService.UnblockServerAsync(server.FirewallRuleName);
-            server.IsBlocked = false;
-            server.PingStatus = PingStatus.Unknown;
-            server.LatencyDisplay = "";
-        }
+        foreach (var server in selectedServers)
+            await UnblockServerAsync(server);
 
         IsOperationInProgress = false;
-        StatusText = $"Unblocked {selected.Count} server(s)";
+        StatusText = $"Unblocked {selectedServers.Count} server(s)";
 
-        await PingServersAsync(selected);
+        await PingServersAsync(selectedServers);
     }
 
     [RelayCommand]
@@ -211,12 +232,7 @@ public sealed partial class ServersPageViewModel : ObservableObject
         StatusText = "Blocking all servers...";
 
         foreach (var server in Servers)
-        {
-            await _firewallService.BlockServerAsync(server.FirewallRuleName, server.CombinedAddresses);
-            server.IsBlocked = true;
-            server.PingStatus = PingStatus.Blocked;
-            server.LatencyDisplay = "Blocked";
-        }
+            await BlockServerAsync(server);
 
         IsOperationInProgress = false;
         StatusText = "All servers blocked";
@@ -231,11 +247,12 @@ public sealed partial class ServersPageViewModel : ObservableObject
         _pingService.CancelAll();
         StatusText = "Unblocking all servers...";
 
-        await UnblockAllServersInternalAsync();
+        await UnblockAllServersAsync();
 
         IsOperationInProgress = false;
         StatusText = "All servers unblocked";
 
+        _pingCache.Clear();
         await PingAllServersAsync();
     }
 
@@ -249,8 +266,8 @@ public sealed partial class ServersPageViewModel : ObservableObject
         else
             _settings.FavoriteServers.Remove(server.Name);
 
-        _settings.Save();
-        ApplyFilters();
+        _settingsRepository.Save(_settings);
+        RefreshFilteredServerList();
     }
 
     [RelayCommand]
@@ -268,12 +285,14 @@ public sealed partial class ServersPageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Sort(string column)
+    private void Sort(string columnName)
     {
-        if (string.Equals(SortColumn, column, StringComparison.OrdinalIgnoreCase))
-        {
+        var column = Enum.TryParse<SortColumn>(columnName, ignoreCase: true, out var parsed)
+            ? parsed
+            : SortColumn.Name;
+
+        if (SortColumn == column)
             SortAscending = !SortAscending;
-        }
         else
         {
             SortColumn = column;
@@ -281,153 +300,108 @@ public sealed partial class ServersPageViewModel : ObservableObject
         }
     }
 
-    public async Task ApplyPresetAsync(string[] presetServers, bool blockExcept)
+    // ─── Public API used by PresetsPageViewModel ─────────────────────────────────
+
+    public async Task ApplyPresetAsync(string[] presetServerNames, bool blockExcept)
     {
         if (IsOperationInProgress) return;
 
         IsOperationInProgress = true;
         _pingService.CancelAll();
+        await UnblockAllServersAsync();
 
-        // First unblock all
-        await UnblockAllServersInternalAsync();
-
-        var presetSet = new HashSet<string>(presetServers);
+        var presetServerNameSet = new HashSet<string>(presetServerNames);
 
         foreach (var server in Servers)
         {
-            bool shouldBlock = blockExcept
-                ? !presetSet.Contains(server.Name)
-                : presetSet.Contains(server.Name);
+            bool shouldBlockThisServer = blockExcept
+                ? !presetServerNameSet.Contains(server.Name)
+                : presetServerNameSet.Contains(server.Name);
 
-            if (shouldBlock)
-            {
-                await _firewallService.BlockServerAsync(server.FirewallRuleName, server.CombinedAddresses);
-                server.IsBlocked = true;
-                server.PingStatus = PingStatus.Blocked;
-                server.LatencyDisplay = "Blocked";
-            }
+            if (shouldBlockThisServer)
+                await BlockServerAsync(server);
         }
 
         IsOperationInProgress = false;
         StatusText = "Preset applied";
 
+        _pingCache.Clear();
         await PingAllServersAsync();
     }
 
-    public async Task PingServerAsync(ServerItemViewModel server)
+    public async Task PingOneServerAsync(ServerItemViewModel server)
     {
         if (server.IsBlocked)
         {
-            server.PingStatus = PingStatus.Blocked;
-            server.LatencyDisplay = "Blocked";
+            MarkServerAsBlocked(server);
             return;
         }
 
-        server.IsPinging = true;
-        server.PingStatus = PingStatus.Pinging;
-        server.LatencyDisplay = "Pinging...";
+        MarkServerAsPinging(server);
 
-        var result = await _pingService.PingServerAsync(server.Addresses);
-
-        if (result.Success)
-        {
-            server.LatencyMs = result.LatencyMs;
-            server.LatencyDisplay = $"{result.LatencyMs}ms";
-            server.PingStatus = PingStatus.Success;
-        }
-        else if (result.TimedOut)
-        {
-            server.LatencyMs = -1;
-            server.LatencyDisplay = "Timed out";
-            server.PingStatus = PingStatus.TimedOut;
-        }
-        else
-        {
-            server.LatencyMs = -1;
-            server.LatencyDisplay = "Error";
-            server.PingStatus = PingStatus.Error;
-        }
-
-        server.IsPinging = false;
+        var pingResult = await _pingService.PingServerAsync(server.Addresses);
+        UpdateServerWithPingResult(server, pingResult);
     }
 
-    private async Task PingAllServersAsync()
+    // ─── Cleanup ─────────────────────────────────────────────────────────────────
+
+    public void Cleanup()
     {
-        _pingCts?.Cancel();
-        _pingCts = new CancellationTokenSource();
-        var ct = _pingCts.Token;
-
-        StatusText = "Pinging all servers...";
-
-        foreach (var server in Servers.ToList())
-        {
-            if (ct.IsCancellationRequested) break;
-
-            // Check blocked status
-            var isBlocked = await _firewallService.IsServerBlockedAsync(server.FirewallRuleName, ct);
-            server.IsBlocked = isBlocked;
-
-            if (isBlocked)
-            {
-                server.PingStatus = PingStatus.Blocked;
-                server.LatencyDisplay = "Blocked";
-                continue;
-            }
-
-            await PingServerAsync(server);
-        }
-
-        if (!ct.IsCancellationRequested)
-            StatusText = "Ready";
+        StopAutoRefresh();
+        CancelAndDisposePingCancellationSource();
+        _pingService.CancelAll();
     }
 
-    private async Task PingServersAsync(IEnumerable<ServerItemViewModel> servers)
-    {
-        foreach (var server in servers)
-        {
-            await PingServerAsync(server);
-        }
-    }
-
-    private async Task UnblockAllServersInternalAsync()
-    {
-        foreach (var server in Servers)
-        {
-            await _firewallService.UnblockServerAsync(server.FirewallRuleName);
-            server.IsBlocked = false;
-            server.PingStatus = PingStatus.Unknown;
-            server.LatencyDisplay = "";
-        }
-    }
+    // ─── Private server list management ──────────────────────────────────────────
 
     private void PopulateServerList()
     {
         Servers.Clear();
 
         if (IsClustered)
-        {
-            foreach (var (name, cluster) in _clusteredServers)
-            {
-                Servers.Add(CreateServerItem(name, cluster.AllAddresses, cluster.Region,
-                    cluster.FirewallRuleName));
-            }
-        }
+            PopulateWithClusteredServers();
         else
-        {
-            foreach (var server in _allServers)
-            {
-                Servers.Add(CreateServerItem(server.Name, server.RelayAddresses, server.Region,
-                    server.FirewallRuleName));
-            }
-        }
+            PopulateWithIndividualServers();
 
-        ApplyFilters();
+        RefreshFilteredServerList();
     }
 
-    private ServerItemViewModel CreateServerItem(string name, List<string> addresses, string region, string firewallRuleName)
+    private void PopulateWithClusteredServers()
     {
-        var flagFileName = FlagResolver.GetFlagPath(name);
+        // Only show entries that are defined clusters — BuildClusteredView also adds individual
+        // non-clustered servers to the dictionary, which must be excluded in cluster view.
+        var clusterNameSet = ClusterConfiguration.Definitions
+            .Select(definition => definition.ClusterName)
+            .ToHashSet();
 
+        foreach (var (clusterName, cluster) in _clusteredServers)
+        {
+            if (!clusterNameSet.Contains(clusterName)) continue;
+
+            var flagNameOverride = ClusterConfiguration.Definitions
+                .FirstOrDefault(definition => definition.ClusterName == clusterName)
+                ?.FlagName;
+
+            Servers.Add(CreateServerItemViewModel(
+                clusterName, cluster.AllAddresses, cluster.Region,
+                cluster.FirewallRuleName, flagNameOverride));
+        }
+    }
+
+    private void PopulateWithIndividualServers()
+    {
+        foreach (var server in _allServers)
+        {
+            Servers.Add(CreateServerItemViewModel(
+                server.Name, server.RelayAddresses, server.Region,
+                server.FirewallRuleName));
+        }
+    }
+
+    private ServerItemViewModel CreateServerItemViewModel(
+        string name, List<string> addresses, string region,
+        string firewallRuleName, string? flagNameOverride = null)
+    {
         return new ServerItemViewModel
         {
             Name = name,
@@ -435,62 +409,296 @@ public sealed partial class ServersPageViewModel : ObservableObject
             Addresses = addresses,
             CombinedAddresses = string.Join(",", addresses),
             FirewallRuleName = firewallRuleName,
-            FlagPath = flagFileName,
+            FlagPath = FlagResolver.GetFlagPackUri(name, flagNameOverride),
             IsFavorite = _settings.FavoriteServers.Contains(name)
         };
     }
 
-    private void ApplyFilters()
+    // ─── Private filter/sort coordination ────────────────────────────────────────
+
+    private void RefreshFilteredServerList()
     {
         FilteredServers.Clear();
 
-        var filtered = Servers.AsEnumerable();
+        var filteredServers = _filterService.Apply(Servers, SearchText, SelectedRegionFilter, FilterMode);
+        var sortedServers = _sortService.Apply(filteredServers, SortColumn, SortAscending);
 
-        if (!string.IsNullOrWhiteSpace(SearchText))
-        {
-            filtered = filtered.Where(s =>
-                s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                s.Region.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (SelectedRegionFilter != "All")
-        {
-            filtered = filtered.Where(s => s.Region == SelectedRegionFilter);
-        }
-
-        filtered = FilterMode switch
-        {
-            "Favorites" => filtered.Where(s => s.IsFavorite),
-            "Blocked" => filtered.Where(s => s.IsBlocked),
-            _ => filtered
-        };
-
-        // Apply sorting
-        filtered = SortColumn switch
-        {
-            "Region" => SortAscending
-                ? filtered.OrderBy(s => s.Region, StringComparer.OrdinalIgnoreCase)
-                : filtered.OrderByDescending(s => s.Region, StringComparer.OrdinalIgnoreCase),
-            "Latency" => SortAscending
-                ? filtered.OrderBy(s => s.LatencyMs)
-                : filtered.OrderByDescending(s => s.LatencyMs),
-            "Blocked" => SortAscending
-                ? filtered.OrderBy(s => s.IsBlocked)
-                : filtered.OrderByDescending(s => s.IsBlocked),
-            "Favorite" => SortAscending
-                ? filtered.OrderBy(s => s.IsFavorite)
-                : filtered.OrderByDescending(s => s.IsFavorite),
-            "Selected" => SortAscending
-                ? filtered.OrderBy(s => s.IsSelected)
-                : filtered.OrderByDescending(s => s.IsSelected),
-            _ => SortAscending
-                ? filtered.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
-                : filtered.OrderByDescending(s => s.Name, StringComparer.OrdinalIgnoreCase)
-        };
-
-        foreach (var server in filtered)
+        foreach (var server in sortedServers)
             FilteredServers.Add(server);
     }
+
+    // ─── Private firewall operations ──────────────────────────────────────────────
+
+    private async Task BlockServerAsync(ServerItemViewModel server)
+    {
+        await _firewallService.BlockServerAsync(server.FirewallRuleName, server.CombinedAddresses);
+        MarkServerAsBlocked(server);
+    }
+
+    private async Task UnblockServerAsync(ServerItemViewModel server)
+    {
+        await _firewallService.UnblockServerAsync(server.FirewallRuleName);
+        MarkServerAsUnblocked(server);
+    }
+
+    private async Task UnblockAllServersAsync()
+    {
+        foreach (var server in Servers)
+            await UnblockServerAsync(server);
+    }
+
+    private async Task UnblockAllServersIfRevisionChangedAsync(string newRevision)
+    {
+        bool serverDataWasUpdatedByValve =
+            !string.IsNullOrEmpty(_settings.ServerRevision) &&
+            _settings.ServerRevision != newRevision;
+
+        if (serverDataWasUpdatedByValve)
+        {
+            StatusText = "Server data updated by Valve. Unblocking all servers...";
+            await UnblockAllServersAsync();
+        }
+    }
+
+    // ─── Private ping operations ──────────────────────────────────────────────────
+
+    private async Task PingAllServersAsync()
+    {
+        var cancellationToken = ResetPingCancellationSource();
+
+        StatusText = "Pinging all servers...";
+
+        if (IsClustered)
+            await PingClustersViaMemberServersAsync(cancellationToken);
+        else
+            await PingIndividualServersAsync(cancellationToken);
+
+        if (!cancellationToken.IsCancellationRequested)
+            StatusText = "Ready";
+    }
+
+    /// <summary>
+    /// In cluster view: pings every individual server from <see cref="_allServers"/>,
+    /// caches each result, then computes and applies the average latency per cluster.
+    /// This avoids pinging the combined cluster address list directly and gives a more
+    /// accurate per-region latency reading from all member relays.
+    /// </summary>
+    private async Task PingClustersViaMemberServersAsync(CancellationToken cancellationToken)
+    {
+        foreach (var clusterViewModel in Servers)
+            MarkServerAsPinging(clusterViewModel);
+
+        foreach (var individualServer in _allServers.ToList())
+        {
+            if (cancellationToken.IsCancellationRequested) break;
+
+            var isBlocked = await _firewallService.IsServerBlockedAsync(
+                individualServer.FirewallRuleName, cancellationToken);
+
+            if (isBlocked)
+            {
+                _pingCache[individualServer.Name] = (-1L, PingStatus.Blocked, "Blocked");
+            }
+            else
+            {
+                var pingResult = await _pingService.PingServerAsync(
+                    individualServer.RelayAddresses, cancellationToken);
+
+                _pingCache[individualServer.Name] = pingResult switch
+                {
+                    { Success: true }  => (pingResult.LatencyMs, PingStatus.Success, $"{pingResult.LatencyMs}ms"),
+                    { TimedOut: true } => (-1L, PingStatus.TimedOut, "Timed out"),
+                    _                  => (-1L, PingStatus.Error, "Error")
+                };
+            }
+        }
+
+        if (cancellationToken.IsCancellationRequested) return;
+
+        foreach (var clusterViewModel in Servers.ToList())
+            ApplyCachedAveragePingToCluster(clusterViewModel);
+    }
+
+    /// <summary>
+    /// In individual view: pings each visible server and caches the result.
+    /// </summary>
+    private async Task PingIndividualServersAsync(CancellationToken cancellationToken)
+    {
+        foreach (var server in Servers.ToList())
+        {
+            if (cancellationToken.IsCancellationRequested) break;
+
+            var isBlocked = await _firewallService.IsServerBlockedAsync(
+                server.FirewallRuleName, cancellationToken);
+
+            server.IsBlocked = isBlocked;
+
+            if (isBlocked)
+                MarkServerAsBlocked(server);
+            else
+                await PingOneServerAsync(server);
+        }
+    }
+
+    /// <summary>
+    /// Reads member server pings from <see cref="_pingCache"/>, averages successful ones,
+    /// and applies the result to the cluster's <see cref="ServerItemViewModel"/>.
+    /// Falls back to Blocked or TimedOut when no successful pings are available.
+    /// </summary>
+    private void ApplyCachedAveragePingToCluster(ServerItemViewModel clusterViewModel)
+    {
+        if (!_clusteredServers.TryGetValue(clusterViewModel.Name, out var cluster))
+            return;
+
+        var successfulMemberPings = cluster.MemberServerNames
+            .Where(memberName =>
+                _pingCache.TryGetValue(memberName, out var cached) && cached.LatencyMs > 0)
+            .Select(memberName => _pingCache[memberName].LatencyMs)
+            .ToList();
+
+        clusterViewModel.IsPinging = false;
+
+        if (successfulMemberPings.Count > 0)
+        {
+            var averageLatencyMs = (long)successfulMemberPings.Average();
+            clusterViewModel.LatencyMs = averageLatencyMs;
+            clusterViewModel.LatencyDisplay = $"{averageLatencyMs}ms";
+            clusterViewModel.PingStatus = PingStatus.Success;
+            return;
+        }
+
+        var allMembersAreBlocked = cluster.MemberServerNames.All(memberName =>
+            _pingCache.TryGetValue(memberName, out var cached) &&
+            cached.Status == PingStatus.Blocked);
+
+        if (allMembersAreBlocked)
+        {
+            MarkServerAsBlocked(clusterViewModel);
+        }
+        else
+        {
+            clusterViewModel.LatencyMs = -1;
+            clusterViewModel.LatencyDisplay = "Timed out";
+            clusterViewModel.PingStatus = PingStatus.TimedOut;
+        }
+    }
+
+    /// <summary>
+    /// Restores cached ping results to all VMs in the current view without issuing
+    /// any new network pings. Called after toggling cluster mode so the user keeps
+    /// seeing latency data without waiting for a full re-ping.
+    /// </summary>
+    private void ApplyCachedPingsToCurrentView()
+    {
+        if (IsClustered)
+        {
+            foreach (var clusterVm in Servers.ToList())
+                ApplyCachedAveragePingToCluster(clusterVm);
+        }
+        else
+        {
+            foreach (var server in Servers.ToList())
+                ApplyCachedPingToIndividualServer(server);
+        }
+    }
+
+    /// <summary>
+    /// Reads a single server's last-known ping result from <see cref="_pingCache"/>
+    /// and applies it to the VM. Blocked entries are skipped — a server that has
+    /// just been unblocked should show Unknown until explicitly re-pinged.
+    /// </summary>
+    private void ApplyCachedPingToIndividualServer(ServerItemViewModel server)
+    {
+        if (!_pingCache.TryGetValue(server.Name, out var cached))
+            return; // No cached result yet — leave as Unknown
+
+        if (cached.Status == PingStatus.Blocked)
+            return; // Server was just unblocked; leave as Unknown until re-pinged
+
+        server.LatencyMs = cached.LatencyMs;
+        server.LatencyDisplay = cached.Display;
+        server.PingStatus = cached.Status;
+    }
+
+    private async Task PingServersAsync(IEnumerable<ServerItemViewModel> servers)
+    {
+        foreach (var server in servers)
+            await PingOneServerAsync(server);
+    }
+
+    private CancellationToken ResetPingCancellationSource()
+    {
+        CancelAndDisposePingCancellationSource();
+        _pingCancellationSource = new CancellationTokenSource();
+        return _pingCancellationSource.Token;
+    }
+
+    private void CancelAndDisposePingCancellationSource()
+    {
+        _pingCancellationSource?.Cancel();
+        _pingCancellationSource?.Dispose();
+        _pingCancellationSource = null;
+    }
+
+    // ─── Private server state helpers ────────────────────────────────────────────
+
+    private void MarkServerAsBlocked(ServerItemViewModel server)
+    {
+        server.IsBlocked = true;
+        server.PingStatus = PingStatus.Blocked;
+        server.LatencyDisplay = "Blocked";
+        _pingCache[server.Name] = (-1L, PingStatus.Blocked, "Blocked");
+    }
+
+    private void MarkServerAsUnblocked(ServerItemViewModel server)
+    {
+        server.IsBlocked = false;
+        server.PingStatus = PingStatus.Unknown;
+        server.LatencyDisplay = string.Empty;
+
+        // Remove any stale "Blocked" cache entry so that ApplyCachedPingsToCurrentView
+        // does not re-apply the blocked state to a server that has just been unblocked.
+        // Successful latency entries from before the server was blocked are not preserved
+        // here because the server needs a fresh ping after being unblocked.
+        if (_pingCache.TryGetValue(server.Name, out var cached) && cached.Status == PingStatus.Blocked)
+            _pingCache.Remove(server.Name);
+    }
+
+    private static void MarkServerAsPinging(ServerItemViewModel server)
+    {
+        server.IsPinging = true;
+        server.PingStatus = PingStatus.Pinging;
+        server.LatencyDisplay = "Pinging...";
+    }
+
+    private void UpdateServerWithPingResult(ServerItemViewModel server, PingResult pingResult)
+    {
+        server.IsPinging = false;
+
+        if (pingResult.Success)
+        {
+            server.LatencyMs = pingResult.LatencyMs;
+            server.LatencyDisplay = $"{pingResult.LatencyMs}ms";
+            server.PingStatus = PingStatus.Success;
+            _pingCache[server.Name] = (pingResult.LatencyMs, PingStatus.Success, $"{pingResult.LatencyMs}ms");
+        }
+        else if (pingResult.TimedOut)
+        {
+            server.LatencyMs = -1;
+            server.LatencyDisplay = "Timed out";
+            server.PingStatus = PingStatus.TimedOut;
+            _pingCache[server.Name] = (-1L, PingStatus.TimedOut, "Timed out");
+        }
+        else
+        {
+            server.LatencyMs = -1;
+            server.LatencyDisplay = "Error";
+            server.PingStatus = PingStatus.Error;
+            _pingCache[server.Name] = (-1L, PingStatus.Error, "Error");
+        }
+    }
+
+    // ─── Auto-refresh timer ───────────────────────────────────────────────────────
 
     private void StartAutoRefresh()
     {
@@ -502,7 +710,7 @@ public sealed partial class ServersPageViewModel : ObservableObject
         {
             Interval = TimeSpan.FromSeconds(AutoRefreshInterval)
         };
-        _autoRefreshTimer.Tick += async (_, _) => await PingAllServersAsync();
+        _autoRefreshTimer.Tick += OnAutoRefreshTimerTick;
         _autoRefreshTimer.Start();
     }
 
@@ -512,20 +720,18 @@ public sealed partial class ServersPageViewModel : ObservableObject
         _autoRefreshTimer = null;
     }
 
-    public void Cleanup()
+    private async void OnAutoRefreshTimerTick(object? sender, EventArgs e)
     {
-        StopAutoRefresh();
-        _pingCts?.Cancel();
-        _pingService.CancelAll();
-    }
-}
+        if (_isPingInProgress) return;
 
-public static class FlagResolver
-{
-    public static string GetFlagPath(string serverName)
-    {
-        // Try exact match with the flag files
-        var safeName = serverName.Replace("/", "").Replace("\\", "");
-        return $"pack://application:,,,/Assets/Flags/{safeName}.png";
+        try
+        {
+            _isPingInProgress = true;
+            await PingAllServersAsync();
+        }
+        finally
+        {
+            _isPingInProgress = false;
+        }
     }
 }

@@ -24,22 +24,6 @@ public partial class ServersPage : Page
         }
     }
 
-    private void FavoriteButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button button && button.Tag is ServerItemViewModel server)
-        {
-            _viewModel.ToggleFavoriteCommand.Execute(server);
-        }
-    }
-
-    private void FilterRadio_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is RadioButton radio && radio.Tag is string mode)
-        {
-            _viewModel.FilterMode = mode;
-        }
-    }
-
     private void ServerListView_OnKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key is not (Key.Space or Key.Enter))

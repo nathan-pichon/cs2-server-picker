@@ -2,63 +2,70 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
+using CS2ServerPicker.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CS2ServerPicker.Services;
 
 public sealed class UpdateService : IUpdateService
 {
-    private const string GitHubApiUrl = "https://api.github.com/repositories/649341649/releases";
-    private const string ReleasesUrl = "https://github.com/FN-FAL113/cs2-server-picker/releases";
-
     private readonly HttpClient _httpClient;
+    private readonly GitHubOptions _gitHubOptions;
+    private readonly ILogger<UpdateService> _logger;
 
-    public UpdateService(HttpClient httpClient)
+    public UpdateService(HttpClient httpClient, IOptions<GitHubOptions> gitHubOptions, ILogger<UpdateService> logger)
     {
         _httpClient = httpClient;
+        _gitHubOptions = gitHubOptions.Value;
+        _logger = logger;
     }
 
-    public async Task<UpdateInfo?> CheckForUpdateAsync(CancellationToken ct = default)
+    public async Task<UpdateInfo?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, GitHubApiUrl);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("CS2ServerPicker", "3.0"));
+            using var request = new HttpRequestMessage(HttpMethod.Get, _gitHubOptions.ReleasesApiUrl);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("CS2ServerPicker", _gitHubOptions.UserAgentVersion));
 
-            var response = await _httpClient.SendAsync(request, ct);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
 
-            var json = await response.Content.ReadAsStringAsync(ct);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(json);
             var releases = doc.RootElement;
 
             if (releases.GetArrayLength() == 0)
                 return null;
 
-            var latestTag = releases[0].GetProperty("tag_name").GetString() ?? "v0.0.0";
-            var latestVersion = latestTag.TrimStart('v');
+            var latestTagName = releases[0].GetProperty("tag_name").GetString() ?? "v0.0.0";
+            var latestVersion = latestTagName.TrimStart('v');
             var currentVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
 
             var updateAvailable = CompareVersions(latestVersion, currentVersion) > 0;
 
-            return new UpdateInfo(latestVersion, currentVersion, updateAvailable, ReleasesUrl);
+            return new UpdateInfo(latestVersion, currentVersion, updateAvailable, _gitHubOptions.ReleasesPageUrl);
         }
-        catch
+        catch (Exception exception)
         {
+            _logger.LogWarning(exception, "Failed to check for updates from {Url}.", _gitHubOptions.ReleasesApiUrl);
             return null;
         }
     }
 
-    private static int CompareVersions(string v1, string v2)
+    private static int CompareVersions(string firstVersion, string secondVersion)
     {
-        var parts1 = v1.Split('.').Select(p => int.TryParse(p, out var n) ? n : 0).ToArray();
-        var parts2 = v2.Split('.').Select(p => int.TryParse(p, out var n) ? n : 0).ToArray();
-        var maxLen = Math.Max(parts1.Length, parts2.Length);
+        var firstParts = firstVersion.Split('.').Select(part => int.TryParse(part, out var number) ? number : 0).ToArray();
+        var secondParts = secondVersion.Split('.').Select(part => int.TryParse(part, out var number) ? number : 0).ToArray();
+        var maxPartCount = Math.Max(firstParts.Length, secondParts.Length);
 
-        for (int i = 0; i < maxLen; i++)
+        for (int partIndex = 0; partIndex < maxPartCount; partIndex++)
         {
-            var p1 = i < parts1.Length ? parts1[i] : 0;
-            var p2 = i < parts2.Length ? parts2[i] : 0;
-            if (p1 != p2) return p1.CompareTo(p2);
+            var firstPartValue = partIndex < firstParts.Length ? firstParts[partIndex] : 0;
+            var secondPartValue = partIndex < secondParts.Length ? secondParts[partIndex] : 0;
+
+            if (firstPartValue != secondPartValue)
+                return firstPartValue.CompareTo(secondPartValue);
         }
 
         return 0;
