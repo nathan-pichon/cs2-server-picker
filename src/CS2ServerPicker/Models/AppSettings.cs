@@ -1,54 +1,39 @@
-using System.IO;
-using System.Text.Json;
-
 namespace CS2ServerPicker.Models;
 
+/// <summary>
+/// Holds all user-configurable application settings.
+/// This is a plain data class — persistence is handled by <see cref="CS2ServerPicker.Services.Settings.ISettingsRepository"/>.
+/// </summary>
 public sealed class AppSettings
 {
-    private static readonly string SettingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "CS2ServerPicker",
-        "settings.json");
-
+    /// <summary>
+    /// The Steam SDR config revision string from the last successful data fetch.
+    /// Used to detect when Valve has updated the relay server list.
+    /// </summary>
     public string ServerRevision { get; set; } = string.Empty;
+
+    /// <summary>
+    /// When true, servers are grouped into regional clusters (e.g., all China relays merged into one entry).
+    /// </summary>
     public bool IsClustered { get; set; } = true;
+
+    /// <summary>
+    /// When true, the application checks for a newer release on startup.
+    /// </summary>
     public bool CheckForUpdatesOnStartup { get; set; } = true;
-    public int AutoRefreshIntervalSeconds { get; set; } = 0; // 0 = disabled
-    public string Theme { get; set; } = "Dark"; // Dark, Light, System
+
+    /// <summary>
+    /// Interval in seconds between automatic ping refreshes. 0 means auto-refresh is disabled.
+    /// </summary>
+    public int AutoRefreshIntervalSeconds { get; set; } = 0;
+
+    /// <summary>
+    /// The UI theme to apply: "Dark", "Light", or "System".
+    /// </summary>
+    public string Theme { get; set; } = "Dark";
+
+    /// <summary>
+    /// The set of server names the user has marked as favorites.
+    /// </summary>
     public HashSet<string> FavoriteServers { get; set; } = [];
-
-    public static AppSettings Load()
-    {
-        try
-        {
-            if (File.Exists(SettingsPath))
-            {
-                var json = File.ReadAllText(SettingsPath);
-                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-            }
-        }
-        catch
-        {
-            // Return defaults on any error
-        }
-
-        return new AppSettings();
-    }
-
-    public void Save()
-    {
-        try
-        {
-            var dir = Path.GetDirectoryName(SettingsPath)!;
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
-
-            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(SettingsPath, json);
-        }
-        catch
-        {
-            // Silently fail on save errors
-        }
-    }
 }

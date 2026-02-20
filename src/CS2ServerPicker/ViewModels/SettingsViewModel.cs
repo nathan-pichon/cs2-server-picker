@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2ServerPicker.Models;
 using CS2ServerPicker.Services;
+using CS2ServerPicker.Services.Settings;
 using Wpf.Ui.Appearance;
 
 namespace CS2ServerPicker.ViewModels;
@@ -10,15 +11,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly IFirewallService _firewallService;
     private readonly IUpdateService _updateService;
+    private readonly ISettingsRepository _settingsRepository;
     private readonly AppSettings _settings;
 
     public SettingsViewModel(
         IFirewallService firewallService,
         IUpdateService updateService,
+        ISettingsRepository settingsRepository,
         AppSettings settings)
     {
         _firewallService = firewallService;
         _updateService = updateService;
+        _settingsRepository = settingsRepository;
         _settings = settings;
         _checkForUpdates = settings.CheckForUpdatesOnStartup;
         _selectedTheme = settings.Theme;
@@ -35,10 +39,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     private int _autoRefreshInterval;
 
     [ObservableProperty]
-    private string _statusText = "";
+    private string _statusText = string.Empty;
 
     [ObservableProperty]
-    private string _firewallStatus = "";
+    private string _firewallStatus = string.Empty;
 
     [ObservableProperty]
     private string _currentVersion = "3.0.0";
@@ -50,27 +54,27 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnCheckForUpdatesChanged(bool value)
     {
         _settings.CheckForUpdatesOnStartup = value;
-        _settings.Save();
+        _settingsRepository.Save(_settings);
     }
 
     partial void OnSelectedThemeChanged(string value)
     {
         _settings.Theme = value;
-        _settings.Save();
+        _settingsRepository.Save(_settings);
         ApplyTheme(value);
     }
 
     partial void OnAutoRefreshIntervalChanged(int value)
     {
         _settings.AutoRefreshIntervalSeconds = value;
-        _settings.Save();
+        _settingsRepository.Save(_settings);
     }
 
     [RelayCommand]
     private async Task CheckFirewallAsync()
     {
-        var enabled = await _firewallService.CheckFirewallEnabledAsync();
-        FirewallStatus = enabled ? "Windows Firewall is enabled." : "Windows Firewall is disabled!";
+        var isEnabled = await _firewallService.CheckFirewallEnabledAsync();
+        FirewallStatus = isEnabled ? "Windows Firewall is enabled." : "Windows Firewall is disabled!";
     }
 
     [RelayCommand]
@@ -84,31 +88,26 @@ public sealed partial class SettingsViewModel : ObservableObject
     private async Task CheckForUpdateAsync()
     {
         StatusText = "Checking for updates...";
-        var update = await _updateService.CheckForUpdateAsync();
+        var updateInfo = await _updateService.CheckForUpdateAsync();
 
-        if (update is null)
+        if (updateInfo is null)
         {
             StatusText = "Could not check for updates. Check your internet connection.";
             return;
         }
 
-        if (update.UpdateAvailable)
-        {
-            StatusText = $"Update available: v{update.LatestVersion} (current: v{update.CurrentVersion})";
-        }
-        else
-        {
-            StatusText = "You are running the latest version.";
-        }
+        StatusText = updateInfo.UpdateAvailable
+            ? $"Update available: v{updateInfo.LatestVersion} (current: v{updateInfo.CurrentVersion})"
+            : "You are running the latest version.";
     }
 
     public static void ApplyTheme(string theme)
     {
-        var appTheme = theme switch
+        var applicationTheme = theme switch
         {
             "Light" => ApplicationTheme.Light,
-            _ => ApplicationTheme.Dark,
+            _       => ApplicationTheme.Dark,
         };
-        ApplicationThemeManager.Apply(appTheme);
+        ApplicationThemeManager.Apply(applicationTheme);
     }
 }

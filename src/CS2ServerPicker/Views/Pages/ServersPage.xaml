@@ -30,7 +30,7 @@
         </Grid.RowDefinitions>
 
         <!-- Top Toolbar -->
-        <Grid Grid.Row="0" Margin="0,0,0,12">
+        <Grid Grid.Row="0" Margin="{StaticResource SpacingBottom12}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -82,7 +82,7 @@
         </Grid>
 
         <!-- Filter Bar -->
-        <Grid Grid.Row="1" Margin="0,0,0,8">
+        <Grid Grid.Row="1" Margin="{StaticResource SpacingBottom8}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -96,19 +96,18 @@
                              GroupName="FilterMode"
                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              Margin="0,0,4,0"
-                             Tag="All" Click="FilterRadio_Click"
                              ToolTip="Show all servers" />
                 <RadioButton Content="Favorites"
+                             IsChecked="{Binding FilterMode, Converter={converters:StringMatchConverter}, ConverterParameter=Favorites}"
                              GroupName="FilterMode"
                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              Margin="0,0,4,0"
-                             Tag="Favorites" Click="FilterRadio_Click"
                              ToolTip="Show only favorited servers" />
                 <RadioButton Content="Blocked"
+                             IsChecked="{Binding FilterMode, Converter={converters:StringMatchConverter}, ConverterParameter=Blocked}"
                              GroupName="FilterMode"
                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                              Margin="0,0,4,0"
-                             Tag="Blocked" Click="FilterRadio_Click"
                              ToolTip="Show only blocked servers" />
             </StackPanel>
 
@@ -143,7 +142,7 @@
                            Margin="8,0,0,0"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           FontSize="11" />
+                           FontSize="{StaticResource FontSizeCaption}" />
 
                 <Button Grid.Column="1"
                         Command="{Binding SortCommand}"
@@ -153,7 +152,7 @@
                         Padding="0"
                         HorizontalAlignment="Left">
                     <TextBlock Text="Server"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeCaption}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
@@ -166,7 +165,7 @@
                         Padding="0"
                         HorizontalAlignment="Center">
                     <TextBlock Text="Ping"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeCaption}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
@@ -179,7 +178,7 @@
                         Padding="0"
                         HorizontalAlignment="Center">
                     <TextBlock Text="Value"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeCaption}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
@@ -192,7 +191,7 @@
                         Padding="0"
                         HorizontalAlignment="Center">
                     <TextBlock Text="Fav"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeCaption}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
@@ -205,7 +204,7 @@
                         Padding="0"
                         HorizontalAlignment="Center">
                     <TextBlock Text="Sel"
-                               FontSize="11"
+                               FontSize="{StaticResource FontSizeCaption}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
@@ -220,7 +219,7 @@
                     <TextBlock Text="{Binding StatusText}"
                                HorizontalAlignment="Center"
                                Margin="0,12,0,0"
-                               FontSize="14"
+                               FontSize="{StaticResource FontSizeSubheader}"
                                Foreground="White" />
                 </StackPanel>
             </Grid>
@@ -281,7 +280,7 @@
                             <!-- Server Name -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0">
                                 <TextBlock Text="{Binding Name}"
-                                           FontSize="13"
+                                           FontSize="{StaticResource FontSizeBody}"
                                            FontWeight="Medium"
                                            TextTrimming="CharacterEllipsis"
                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -308,7 +307,7 @@
                                        Text="{Binding LatencyDisplay}"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Center"
-                                       FontSize="12"
+                                       FontSize="{StaticResource FontSizeBodySmall}"
                                        FontWeight="SemiBold"
                                        Foreground="{Binding PingStatus, Converter={StaticResource PingStatusToBrush}}" />
 
@@ -320,8 +319,8 @@
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
                                     Cursor="Hand"
-                                    Click="FavoriteButton_Click"
-                                    Tag="{Binding}"
+                                    Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                    CommandParameter="{Binding}"
                                     ToolTip="Toggle favorite">
                                 <ui:SymbolIcon Symbol="{Binding IsFavorite, Converter={StaticResource BoolToFavoriteIcon}}"
                                               FontSize="16"
@@ -407,13 +406,13 @@
 
             <TextBlock Grid.Column="0"
                        Text="{Binding StatusText}"
-                       FontSize="11"
+                       FontSize="{StaticResource FontSizeCaption}"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <TextBlock Text="{Binding FilteredServers.Count, StringFormat='{}{0} servers'}"
-                           FontSize="11"
+                           FontSize="{StaticResource FontSizeCaption}"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0" />

@@ -21,7 +21,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Grid Grid.Row="0" Margin="0,0,0,16">
+        <Grid Grid.Row="0" Margin="{StaticResource SpacingBottom16}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -29,7 +29,7 @@
 
             <TextBlock Grid.Column="0"
                        Text="Server Presets"
-                       FontSize="24"
+                       FontSize="{StaticResource FontSizeHeading}"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
@@ -51,7 +51,7 @@
         <!-- Main Content -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="Auto" MinWidth="220" MaxWidth="360" />
                 <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -70,7 +70,7 @@
 
                     <TextBlock Grid.Row="0"
                                Text="Saved Presets"
-                               FontSize="14"
+                               FontSize="{StaticResource FontSizeSubheader}"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                Margin="4,0,0,8" />
@@ -90,10 +90,10 @@
 
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="{Binding Name}"
-                                                   FontSize="13"
+                                                   FontSize="{StaticResource FontSizeBody}"
                                                    FontWeight="Medium"
                                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                        <TextBlock FontSize="11"
+                                        <TextBlock FontSize="{StaticResource FontSizeCaption}"
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                                             <Run Text="{Binding ServerCount, Mode=OneWay}" />
                                             <Run Text="servers" />
@@ -144,10 +144,10 @@
 
                         <TextBlock Grid.Row="0"
                                    Text="Preset Servers"
-                                   FontSize="14"
+                                   FontSize="{StaticResource FontSizeSubheader}"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   Margin="0,0,0,8" />
+                                   Margin="{StaticResource SpacingBottom8}" />
 
                         <ListBox Grid.Row="1"
                                  ItemsSource="{Binding SelectedPresetServers}"
@@ -155,7 +155,7 @@
                                  Background="Transparent">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding}" Margin="4,3" FontSize="12"
+                                    <TextBlock Text="{Binding}" Margin="4,3" FontSize="{StaticResource FontSizeBodySmall}"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -213,10 +213,10 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0"
-                                   FontSize="14"
+                                   FontSize="{StaticResource FontSizeSubheader}"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   Margin="0,0,0,8">
+                                   Margin="{StaticResource SpacingBottom8}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="New Preset" />
@@ -233,7 +233,7 @@
                                     PlaceholderText="Preset name..."
                                     Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
                                     ToolTip="Enter a name for the preset (letters, numbers, and spaces only)"
-                                    Margin="0,0,0,12" />
+                                    Margin="{StaticResource SpacingBottom12}" />
 
                         <!-- Server selection list -->
                         <ListBox Grid.Row="2"
@@ -246,7 +246,7 @@
                                               Content="{Binding Name}"
                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                               Margin="2,2"
-                                              FontSize="12" />
+                                              FontSize="{StaticResource FontSizeBodySmall}" />
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -271,7 +271,7 @@
         <!-- Status Bar -->
         <TextBlock Grid.Row="2"
                    Text="{Binding StatusText}"
-                   FontSize="11"
+                   FontSize="{StaticResource FontSizeCaption}"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                    Margin="0,8,0,0" />
     </Grid>

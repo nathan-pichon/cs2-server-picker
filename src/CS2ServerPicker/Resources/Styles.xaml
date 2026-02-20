@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ─── Typography scale ─────────────────────────────────────────────────── -->
+
+    <!-- Page-level title (e.g. "Server Presets", "Settings") -->
+    <sys:Double x:Key="FontSizeHeading">24</sys:Double>
+
+    <!-- Section header labels (e.g. "Appearance", "Behavior") -->
+    <sys:Double x:Key="FontSizeSectionHeader">16</sys:Double>
+
+    <!-- Panel sub-headings and overlay labels (e.g. "Preset Servers") -->
+    <sys:Double x:Key="FontSizeSubheader">14</sys:Double>
+
+    <!-- Primary list content (e.g. server name, preset name) -->
+    <sys:Double x:Key="FontSizeBody">13</sys:Double>
+
+    <!-- Secondary list content (e.g. latency display, about text) -->
+    <sys:Double x:Key="FontSizeBodySmall">12</sys:Double>
+
+    <!-- Caption / status / column-header text -->
+    <sys:Double x:Key="FontSizeCaption">11</sys:Double>
+
+    <!-- ─── Spacing scale ────────────────────────────────────────────────────── -->
+
+    <!-- Outer page margin (all four sides) -->
+    <Thickness x:Key="PageMargin">16</Thickness>
+
+    <!-- Bottom-only spacing values for consistent vertical rhythm -->
+    <Thickness x:Key="SpacingBottom24">0,0,0,24</Thickness>
+    <Thickness x:Key="SpacingBottom16">0,0,0,16</Thickness>
+    <Thickness x:Key="SpacingBottom12">0,0,0,12</Thickness>
+    <Thickness x:Key="SpacingBottom8">0,0,0,8</Thickness>
+
+</ResourceDictionary>

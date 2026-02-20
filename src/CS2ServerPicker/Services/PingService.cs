@@ -1,17 +1,25 @@
 using System.Net.NetworkInformation;
+using CS2ServerPicker.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace CS2ServerPicker.Services;
 
 public sealed class PingService : IPingService
 {
     private readonly List<Ping> _activePings = [];
-    private readonly object _lock = new();
+    private readonly object _activePingsLock = new();
+    private readonly int _pingTimeoutMs;
 
-    public async Task<PingResult> PingServerAsync(IEnumerable<string> addresses, CancellationToken ct = default)
+    public PingService(IOptions<PingServiceOptions> pingOptions)
+    {
+        _pingTimeoutMs = pingOptions.Value.TimeoutMs;
+    }
+
+    public async Task<PingResult> PingServerAsync(IEnumerable<string> addresses, CancellationToken cancellationToken = default)
     {
         var ping = new Ping();
 
-        lock (_lock)
+        lock (_activePingsLock)
         {
             _activePings.Add(ping);
         }
@@ -20,16 +28,14 @@ public sealed class PingService : IPingService
         {
             foreach (var address in addresses)
             {
-                if (ct.IsCancellationRequested)
+                if (cancellationToken.IsCancellationRequested)
                     return new PingResult(false, 0, false);
 
                 try
                 {
-                    var reply = await ping.SendPingAsync(address, 3000);
+                    var reply = await ping.SendPingAsync(address, _pingTimeoutMs);
                     if (reply.Status == IPStatus.Success && reply.RoundtripTime > 0)
-                    {
                         return new PingResult(true, reply.RoundtripTime, false);
-                    }
                 }
                 catch (PingException)
                 {
@@ -45,7 +51,7 @@ public sealed class PingService : IPingService
         }
         finally
         {
-            lock (_lock)
+            lock (_activePingsLock)
             {
                 _activePings.Remove(ping);
             }
@@ -56,7 +62,7 @@ public sealed class PingService : IPingService
 
     public void CancelAll()
     {
-        lock (_lock)
+        lock (_activePingsLock)
         {
             foreach (var ping in _activePings)
             {
@@ -67,7 +73,7 @@ public sealed class PingService : IPingService
                 }
                 catch
                 {
-                    // Ignore disposal errors
+                    // Ignore errors during cancellation — the ping is being torn down
                 }
             }
 
