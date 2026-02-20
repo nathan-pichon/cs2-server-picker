@@ -18,7 +18,7 @@ public static class ClusterConfiguration
     [
         new() { ClusterName = "China",             MatchPatterns = ["Perfect", "Hong Kong", "Alibaba", "Tencent"], Region = ServerRegions.Asia },
         new() { ClusterName = "Japan",             MatchPatterns = ["Tokyo"],                                      Region = ServerRegions.Asia },
-        new() { ClusterName = "Stockholm (Sweden)", MatchPatterns = ["Stockholm"],                                 Region = ServerRegions.Europe },
+        new() { ClusterName = "Stockholm (Sweden)", MatchPatterns = ["Stockholm"],                                 Region = ServerRegions.Europe, FlagName = "Stockholm - Bromma (Sweden) (sto2)" },
         new() { ClusterName = "India",             MatchPatterns = ["Chennai", "Mumbai"],                          Region = ServerRegions.Asia },
     ];
 }

@@ -27,6 +27,12 @@ public sealed class ClusterDefinition
     public required string ClusterName { get; init; }
     public required string[] MatchPatterns { get; init; }
     public required string Region { get; init; }
+
+    /// <summary>
+    /// Optional override for the flag asset lookup. When null, the ClusterName is used.
+    /// Set this when the cluster name doesn't match any flag image file name.
+    /// </summary>
+    public string? FlagName { get; init; }
 }
 
 /// <summary>
@@ -37,6 +43,12 @@ public sealed class ClusteredServer
     public required string Name { get; init; }
     public required List<string> AllAddresses { get; init; }
     public required string Region { get; init; }
+
+    /// <summary>
+    /// Names of the individual servers that were merged into this cluster.
+    /// Used to compute average ping across all member servers.
+    /// </summary>
+    public List<string> MemberServerNames { get; init; } = [];
 
     public string CombinedAddresses => string.Join(",", AllAddresses);
     public string FirewallRuleName => $"CS2ServerPicker_{Name.Replace(" ", "")}";

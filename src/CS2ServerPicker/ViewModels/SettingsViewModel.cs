@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CS2ServerPicker.Converters;
 using CS2ServerPicker.Models;
 using CS2ServerPicker.Services;
 using CS2ServerPicker.Services.Settings;
@@ -27,6 +28,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _checkForUpdates = settings.CheckForUpdatesOnStartup;
         _selectedTheme = settings.Theme;
         _autoRefreshInterval = settings.AutoRefreshIntervalSeconds;
+        _maxPingBarMs = settings.MaxPingBarMs;
+
+        // Sync static converter properties with persisted user preference on startup.
+        PingStatusToBarWidthConverter.MaxPingBarMs = settings.MaxPingBarMs;
+        LatencyToBrushConverter.MaxPingBarMs = settings.MaxPingBarMs;
     }
 
     [ObservableProperty]
@@ -37,6 +43,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private int _autoRefreshInterval;
+
+    [ObservableProperty]
+    private int _maxPingBarMs;
 
     [ObservableProperty]
     private string _statusText = string.Empty;
@@ -50,6 +59,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string[] ThemeOptions { get; } = ["Dark", "Light"];
 
     public int[] RefreshIntervals { get; } = [0, 30, 60, 120, 300];
+
+    /// <summary>
+    /// Available values for the "Max ping bar" threshold setting.
+    /// The bar reaches full width and full red at or above this latency (ms).
+    /// </summary>
+    public int[] MaxPingBarOptions { get; } = [60, 80, 100, 120, 150, 200, 300];
 
     partial void OnCheckForUpdatesChanged(bool value)
     {
@@ -68,6 +83,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         _settings.AutoRefreshIntervalSeconds = value;
         _settingsRepository.Save(_settings);
+    }
+
+    partial void OnMaxPingBarMsChanged(int value)
+    {
+        _settings.MaxPingBarMs = value;
+        _settingsRepository.Save(_settings);
+
+        // Update the static converter properties so all existing row bindings
+        // re-evaluate immediately without requiring a full list rebuild.
+        PingStatusToBarWidthConverter.MaxPingBarMs = value;
+        LatencyToBrushConverter.MaxPingBarMs = value;
     }
 
     [RelayCommand]

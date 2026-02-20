@@ -121,6 +121,43 @@
                 </ui:CardControl.Header>
             </ui:CardControl>
 
+            <!-- Ping Section -->
+            <TextBlock Text="Ping"
+                       FontSize="{StaticResource FontSizeSectionHeader}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                       Margin="0,20,0,12" />
+
+            <ui:CardControl Margin="{StaticResource SpacingBottom8}">
+                <ui:CardControl.Header>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Max Ping Bar Threshold" FontWeight="Medium"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Latency (ms) at which the ping bar is full and red"
+                                       FontSize="{StaticResource FontSizeCaption}"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding MaxPingBarOptions}"
+                                  SelectedItem="{Binding MaxPingBarMs}"
+                                  Width="120">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StringFormat='{}{0} ms'}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                </ui:CardControl.Header>
+            </ui:CardControl>
+
             <!-- Firewall Section -->
             <TextBlock Text="Firewall"
                        FontSize="{StaticResource FontSizeSectionHeader}"

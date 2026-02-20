@@ -116,12 +116,16 @@ public sealed class ServerDataService : IServerDataService
         {
             var matchingServers = servers.Where(server =>
                 clusterDefinition.MatchPatterns.Any(pattern =>
-                    server.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase)));
+                    server.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
 
             var allClusterAddresses = new List<string>();
+            var memberServerNames = new List<string>();
+
             foreach (var matchingServer in matchingServers)
             {
                 allClusterAddresses.AddRange(matchingServer.RelayAddresses);
+                memberServerNames.Add(matchingServer.Name);
                 serversAlreadyAssignedToCluster.Add(matchingServer.Name);
             }
 
@@ -131,7 +135,8 @@ public sealed class ServerDataService : IServerDataService
                 {
                     Name = clusterDefinition.ClusterName,
                     AllAddresses = allClusterAddresses,
-                    Region = clusterDefinition.Region
+                    Region = clusterDefinition.Region,
+                    MemberServerNames = memberServerNames
                 };
             }
         }

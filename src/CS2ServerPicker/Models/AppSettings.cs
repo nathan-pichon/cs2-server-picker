@@ -36,4 +36,10 @@ public sealed class AppSettings
     /// The set of server names the user has marked as favorites.
     /// </summary>
     public HashSet<string> FavoriteServers { get; set; } = [];
+
+    /// <summary>
+    /// The latency threshold (ms) at which the ping bar reaches 100% width and maximum red color.
+    /// Servers with a ping at or above this value show a fully red, full-width bar.
+    /// </summary>
+    public int MaxPingBarMs { get; set; } = 120;
 }

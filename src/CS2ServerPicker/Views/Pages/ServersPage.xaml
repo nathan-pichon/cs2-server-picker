@@ -15,6 +15,7 @@
     <Page.Resources>
         <converters:PingStatusToBrushConverter x:Key="PingStatusToBrush" />
         <converters:PingStatusToBarWidthConverter x:Key="PingStatusToBarWidth" />
+        <converters:LatencyToBrushConverter x:Key="LatencyToBarBrush" />
         <converters:BoolToFavoriteIconConverter x:Key="BoolToFavoriteIcon" />
         <converters:InverseBoolConverter x:Key="InverseBool" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
@@ -255,7 +256,8 @@
                                 <ColumnDefinition Width="36" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Flag -->
+                            <!-- Flag: IgnoreImageCache removed to prevent stale images
+                                 during VirtualizationMode="Recycling" list rebuilds -->
                             <Image Grid.Column="0"
                                    Width="24" Height="16"
                                    VerticalAlignment="Center"
@@ -263,7 +265,6 @@
                                    RenderOptions.BitmapScalingMode="HighQuality">
                                 <Image.Source>
                                     <BitmapImage UriSource="{Binding FlagPath, TargetNullValue={x:Null}}"
-                                                 CreateOptions="IgnoreImageCache"
                                                  DecodePixelWidth="48" />
                                 </Image.Source>
                                 <Image.Style>
@@ -290,12 +291,12 @@
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
-                            <!-- Ping Bar -->
+                            <!-- Ping Bar: narrow+green = low ping, full+red = high ping -->
                             <Grid Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
                                 <Border Background="{ui:ThemeResource ControlFillColorDisabledBrush}"
                                         CornerRadius="3"
                                         Height="6" />
-                                <Border Background="{Binding PingStatus, Converter={StaticResource PingStatusToBrush}}"
+                                <Border Background="{Binding LatencyMs, Converter={StaticResource LatencyToBarBrush}}"
                                         CornerRadius="3"
                                         Height="6"
                                         HorizontalAlignment="Left"
@@ -311,7 +312,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="{Binding PingStatus, Converter={StaticResource PingStatusToBrush}}" />
 
-                            <!-- Favorite Toggle -->
+                            <!-- Favorite Toggle: Filled=True renders a solid star when favorited -->
                             <Button Grid.Column="4"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -323,6 +324,7 @@
                                     CommandParameter="{Binding}"
                                     ToolTip="Toggle favorite">
                                 <ui:SymbolIcon Symbol="{Binding IsFavorite, Converter={StaticResource BoolToFavoriteIcon}}"
+                                              Filled="{Binding IsFavorite}"
                                               FontSize="16"
                                               Foreground="{StaticResource FavoriteBrush}" />
                             </Button>
